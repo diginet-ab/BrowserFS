@@ -42,14 +42,6 @@ Prerequisites:
 * Node and NPM
 * Run `yarn install` (or `npm install`) to install local dependencies and build BrowserFS
 
-A minified build can be found in `dist/browserfs.min.js`, and the unminified build can be found in `dist/browserfs.js`.
-
-Custom builds:
-
-If you want to build BrowserFS with a subset of the available backends,
-change `src/core/backends.ts` to include only the backends you require,
-and re-build.
-
 ### Using
 
 Using `BrowserFS.configure()`, you can easily configure BrowserFS to use a variety of file system types.
@@ -122,70 +114,6 @@ fetch('mydata.zip').then(function(response) {
 });
 ```
 
-### Using with Browserify and Webpack
-
-BrowserFS is published as a UMD module, so you can either include it on your webpage in a `script` tag or bundle it with your favorite
-JavaScript module bundler.
-
-You can also use BrowserFS to supply your application with `fs`, `path`, and `buffer` modules, as well as the `Buffer` and `process`
-globals. BrowserFS contains shim modules for `fs`, `buffer`, `path`, and `process` that you can use with Webpack and Browserify.
-
-Webpack:
-
-```javascript
-module.exports = {
-  resolve: {
-    // Use our versions of Node modules.
-    alias: {
-      'fs': 'browserfs/dist/shims/fs.js',
-      'buffer': 'browserfs/dist/shims/buffer.js',
-      'path': 'browserfs/dist/shims/path.js',
-      'processGlobal': 'browserfs/dist/shims/process.js',
-      'bufferGlobal': 'browserfs/dist/shims/bufferGlobal.js',
-      'bfsGlobal': require.resolve('browserfs')
-    }
-  },
-  // REQUIRED to avoid issue "Uncaught TypeError: BrowserFS.BFSRequire is not a function"
-  // See: https://github.com/jvilk/BrowserFS/issues/201
-  module: {
-    noParse: /browserfs\.js/
-  },
-  plugins: [
-    // Expose BrowserFS, process, and Buffer globals.
-    // NOTE: If you intend to use BrowserFS in a script tag, you do not need
-    // to expose a BrowserFS global.
-    new webpack.ProvidePlugin({ BrowserFS: 'bfsGlobal', process: 'processGlobal', Buffer: 'bufferGlobal' })
-  ],
-  // DISABLE Webpack's built-in process and Buffer polyfills!
-  node: {
-    process: false,
-    Buffer: false
-  }
-};
-```
-
-Browserify:
-
-```javascript
-var browserfsPath = require.resolve('browserfs');
-var browserifyConfig = {
-  // Override Browserify's builtins for buffer/fs/path.
-  builtins: Object.assign({}, require('browserify/lib/builtins'), {
-    "buffer": require.resolve('browserfs/dist/shims/buffer.js'),
-    "fs": require.resolve("browserfs/dist/shims/fs.js"),
-    "path": require.resolve("browserfs/dist/shims/path.js")
-  }),
-  insertGlobalVars: {
-    // process, Buffer, and BrowserFS globals.
-    // BrowserFS global is not required if you include browserfs.js
-    // in a script tag.
-    "process": function () { return "require('browserfs/dist/shims/process.js')" },
-    'Buffer': function () { return "require('buffer').Buffer" },
-    "BrowserFS": function() { return "require('" + browserfsPath + "')" }
-  }
-};
-```
-
 ### Using with Node
 
 You can use BrowserFS with Node. Simply add `browserfs` as an NPM dependency, and `require('browserfs')`.
@@ -193,66 +121,6 @@ The object returned from this action is the same `BrowserFS` global described ab
 
 If you need BrowserFS to return Node Buffer objects (instead of objects that implement the same interface),
 simply `require('browserfs/dist/node/index')` instead.
-
-### Using with Emscripten
-
-You can use any *synchronous* BrowserFS file systems with Emscripten!
-Persist particular folders in the Emscripten file system to `localStorage`, or enable Emscripten to synchronously download files from another folder as they are requested.
-
-Include `browserfs.min.js` into the page, and configure BrowserFS prior to running your Emscripten code. Then, add code similar to the following to your `Module`'s `preRun` array:
-
-```javascript
-/**
- * Mounts a localStorage-backed file system into the /data folder of Emscripten's file system.
- */
-function setupBFS() {
-  // Grab the BrowserFS Emscripten FS plugin.
-  var BFS = new BrowserFS.EmscriptenFS();
-  // Create the folder that we'll turn into a mount point.
-  FS.createFolder(FS.root, 'data', true, true);
-  // Mount BFS's root folder into the '/data' folder.
-  FS.mount(BFS, {root: '/'}, '/data');
-}
-```
-
-Note: Do **NOT** use `BrowserFS.install(window)` on a page with an Emscripten application! Emscripten will be tricked into thinking that it is running in Node JS.
-
-If you wish to use an asynchronous BrowserFS backend with Emscripten (e.g. Dropbox), you'll need to wrap it into an `AsyncMirror` file system first:
-
-```javascript
-/**
- * Run this prior to starting your Emscripten module.
- * @param dropboxClient An authenticated DropboxJS client.
- */
-function asyncSetup(dropboxClient, cb) {
-  // This wraps Dropbox in the AsyncMirror file system.
-  // BrowserFS will download all of Dropbox into an
-  // InMemory file system, and mirror operations to
-  // the two to keep them in sync.
-  BrowserFS.configure({
-    fs: "AsyncMirror",
-    options: {
-      sync: {
-        fs: "InMemory"
-      },
-      async: {
-        fs: "Dropbox",
-        options: {
-          client: dropboxClient
-        }
-      }
-    }
-  }, cb);
-}
-function setupBFS() {
-  // Grab the BrowserFS Emscripten FS plugin.
-  var BFS = new BrowserFS.EmscriptenFS();
-  // Create the folder that we'll turn into a mount point.
-  FS.createFolder(FS.root, 'data', true, true);
-  // Mount BFS's root folder into the '/data' folder.
-  FS.mount(BFS, {root: '/'}, '/data');
-}
-```
 
 ### Testing
 
