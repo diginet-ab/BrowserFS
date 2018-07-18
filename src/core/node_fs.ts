@@ -28,6 +28,16 @@ Object.keys(fsProto).forEach((key) => {
   }
 });
 
+Object.getOwnPropertyNames(fsProto).forEach((key) => {
+  if (typeof fs[key] === 'function') {
+    (<any> _fsMock)[key] = function() {
+      return (<Function> fs[key]).apply(fs, arguments);
+    };
+  } else {
+    (<any> _fsMock)[key] = fs[key];
+  }
+});
+
 _fsMock['changeFSModule'] = function(newFs: FS): void {
   fs = newFs;
 };

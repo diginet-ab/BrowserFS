@@ -29,6 +29,9 @@ if (!Buffer.isEncoding(binaryEncoding)) {
  * A synchronous key-value store backed by localStorage.
  */
 export class LocalStorageStore implements SyncKeyValueStore, SimpleSyncStore {
+  constructor(public partition: string) {
+  }
+
   public name(): string {
     return LocalStorageFileSystem.Name;
   }
@@ -44,7 +47,7 @@ export class LocalStorageStore implements SyncKeyValueStore, SimpleSyncStore {
 
   public get(key: string): Buffer | undefined {
     try {
-      const data = global.localStorage.getItem(key);
+      const data = global.localStorage.getItem(this.partition + key);
       if (data !== null) {
         return Buffer.from(data, binaryEncoding);
       }
@@ -57,11 +60,11 @@ export class LocalStorageStore implements SyncKeyValueStore, SimpleSyncStore {
 
   public put(key: string, data: Buffer, overwrite: boolean): boolean {
     try {
-      if (!overwrite && global.localStorage.getItem(key) !== null) {
+      if (!overwrite && global.localStorage.getItem(this.partition +  key) !== null) {
         // Don't want to overwrite the key!
         return false;
       }
-      global.localStorage.setItem(key, data.toString(binaryEncoding));
+      global.localStorage.setItem(this.partition + key, data.toString(binaryEncoding));
       return true;
     } catch (e) {
       throw new ApiError(ErrorCode.ENOSPC, "LocalStorage is full.");
@@ -70,9 +73,9 @@ export class LocalStorageStore implements SyncKeyValueStore, SimpleSyncStore {
 
   public del(key: string): void {
     try {
-      global.localStorage.removeItem(key);
+      global.localStorage.removeItem(this.partition +  + ":" + key);
     } catch (e) {
-      throw new ApiError(ErrorCode.EIO, "Unable to delete key " + key + ": " + e);
+      throw new ApiError(ErrorCode.EIO, "Unable to delete key " + (this.partition + key) + ": " + e);
     }
   }
 }
@@ -85,12 +88,17 @@ export default class LocalStorageFileSystem extends SyncKeyValueFileSystem {
   public static readonly Name = "LocalStorage";
 
   public static readonly Options: FileSystemOptions = {};
+  public static partition: string = "";
 
   /**
    * Creates a LocalStorageFileSystem instance.
    */
   public static Create(options: any, cb: BFSCallback<LocalStorageFileSystem>): void {
-    cb(null, new LocalStorageFileSystem());
+    let partition = "";
+    if (options && options.partition) {
+      partition = options.partition + ":";
+    }
+    cb(null, new LocalStorageFileSystem(partition));
   }
   public static isAvailable(): boolean {
     return typeof global.localStorage !== 'undefined';
@@ -98,5 +106,5 @@ export default class LocalStorageFileSystem extends SyncKeyValueFileSystem {
   /**
    * Creates a new LocalStorage file system using the contents of `localStorage`.
    */
-  private constructor() { super({ store: new LocalStorageStore() }); }
+  private constructor(partition: string) { super({ store: new LocalStorageStore(partition) }); }
 }

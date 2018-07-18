@@ -1,4 +1,4 @@
-# BrowserFS v2.0.0-beta
+# @diginet/ds-fs
 Note: This is a fork of https://github.com/jvilk/BrowserFS
 > BrowserFS is an in-browser file system that emulates the [Node JS file system API](http://nodejs.org/api/fs.html) and supports storing and retrieving files from various backends. BrowserFS also integrates nicely into the Emscripten file system.
 
@@ -29,6 +29,7 @@ BrowserFS is highly extensible, and ships with many filesystem backends:
   * Note: Loads the entire contents of the file system into a synchronous backend during construction. Performs synchronous operations in-memory, and enqueues them to be mirrored onto the asynchronous backend.
 * `FolderAdapter`: Wraps a file system, and scopes all interactions to a subfolder of that file system.
 * `Emscripten`: Lets you mount Emscripten file systems inside BrowserFS.
+* `GridFsFileSystem`: Stores files into a MongoDB GridFS database via a ds-nodes GridFs RPC server.
 
 More backends can be defined by separate libraries, so long as they extend the `BaseFileSystem` class. Multiple backends can be active at once at different locations in the directory hierarchy.
 

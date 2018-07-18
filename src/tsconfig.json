@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "module": "es2015",
-    "target": "es2015",
-    "outDir": "../build/temp/library/ts",
+    "module": "commonjs",
+    "target": "es5",
+    "outDir": "../lib",
     "lib": ["dom", "es2015", "es2016", "es2017"],
     "moduleResolution": "node",
     "sourceMap": true,
