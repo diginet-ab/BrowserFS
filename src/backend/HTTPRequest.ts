@@ -161,8 +161,10 @@ export default class HTTPRequest extends BaseFileSystem implements FileSystem {
   }
 
   public empty(): void {
-    this._index.fileIterator(function(file: Stats) {
-      file.fileData = null;
+    this._index.fileIterator(function(file?: Stats) {
+      if (file) {
+        file.fileData = null;
+      }
     });
   }
 

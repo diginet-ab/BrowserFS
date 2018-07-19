@@ -1,0 +1,25 @@
+{
+    "cSpell.words": [
+        "backends",
+        "browserfs",
+        "buble",
+        "dbro",
+        "dbrot",
+        "dbrw",
+        "fubar'd",
+        "hejdå",
+        "hejsan",
+        "httpdownloadfs",
+        "inode",
+        "jvilk",
+        "pako",
+        "readwrite",
+        "svejs",
+        "typedoc",
+        "umass",
+        "vilk"
+    ],
+    "search.exclude": {
+        "**/node_modules": true
+    }
+}
