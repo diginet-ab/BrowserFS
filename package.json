@@ -41,7 +41,6 @@
     "buble": "^0.19.3",
     "buffer": "^5.0.7",
     "detect-browsers": "~2.0.0",
-    "dropbox": "^2.5.7",
     "express": "^4.15.3",
     "karma": "^1.7.0",
     "karma-chrome-launcher": "^2.2.0",
@@ -100,6 +99,7 @@
     "@diginet/ds-mongodb": "^1.0.33",
     "@diginet/ds-nodes": "^1.0.72",
     "async": "^2.5.0",
+    "dropbox": "^2.5.13",
     "pako": "^1.0.5"
   }
 }
