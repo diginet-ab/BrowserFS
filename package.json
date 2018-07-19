@@ -100,9 +100,6 @@
     "@diginet/ds-mongodb": "^1.0.33",
     "@diginet/ds-nodes": "^1.0.72",
     "async": "^2.5.0",
-    "babel-polyfill": "^6.26.0",
-    "dns": "^0.2.2",
-    "pako": "^1.0.5",
-    "rollup-plugin-json": "^3.0.0"
+    "pako": "^1.0.5"
   }
 }
