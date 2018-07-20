@@ -2,7 +2,7 @@ import { BFSOneArgCallback, BFSCallback, FileSystemOptions } from "../core/file_
 import { AsyncKeyValueROTransaction, AsyncKeyValueRWTransaction, AsyncKeyValueStore, AsyncKeyValueFileSystem } from "../generic/key_value_filesystem";
 import { ApiError, ErrorCode } from "../core/api_error";
 import { GridFs } from "@diginet/ds-mongodb";
-import { RpcClient, NetworkNode, BrowserWebSocketTransport } from "@diginet/ds-nodes";
+import { RpcClient, NetworkNode, BrowserWebSocketTransport, Transport } from "@diginet/ds-nodes";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -139,6 +139,8 @@ export interface GridFSOptions {
   networkNode: string;
   // The size of the inode cache. Defaults to 100. A size of 0 or below disables caching.
   cacheSize?: number;
+  // Transport class to use
+  transport: typeof Transport;
 }
 
 /**
@@ -176,6 +178,11 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
       type: "number",
       optional: true,
       description: "The size of the inode cache. Defaults to 100. A size of 0 or below disables caching."
+    },
+    transport: {
+      type: "function",
+      optional: false,
+      description: "Transport type to use."
     }
   };
 
@@ -185,7 +192,11 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
   public static async Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
     try {
       const gfs = new GridFsFileSystem(typeof (opts.cacheSize) === 'number' ? opts.cacheSize : 100);
-      const networkNode = new NetworkNode(uuidv4(), new BrowserWebSocketTransport((opts.host ? opts.host : window.location.host).split(":")[0] + ":" + opts.port.toString(), false));
+      let T = opts.transport;
+      if (!T) {
+        T = BrowserWebSocketTransport;
+      }
+      const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(":")[0] + ":" + opts.port.toString(), false));
       await networkNode.open();
       const db = new RpcClient<GridFs>(networkNode, "GridFs").api(opts.networkNode);
       const value = await db.open(opts.databaseName ? opts.databaseName : "browserFsDb");

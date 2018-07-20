@@ -1,4 +1,5 @@
-// import { NetworkNode, BrowserWebSocketTransport } from "@diginet/ds-nodes";
+import "babel-polyfill";
+import { BrowserWebSocketTransport } from "@diginet/ds-nodes";
 import * as BrowserFS from "../../../src/core/browserfs";
 /*
 const node = new NetworkNode("webClient", new BrowserWebSocketTransport(window.location.host.split(":")[0] + ":7656", false));
@@ -46,7 +47,8 @@ BrowserFS.configure({
                         host: "127.0.0.1",
                         networkNode: "server",
                         port: 7656,
-                        databaseName: "myBrowserDb"
+                        databaseName: "myBrowserDb",
+                        transport: BrowserWebSocketTransport
                     }
                 }
             },

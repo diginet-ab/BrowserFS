@@ -9,7 +9,7 @@
             "request": "launch",
             "sourceMaps": true,
             "name": "Launch Program",
-            "program": "${workspaceFolder}/build/temp/library/ts/examples/demo1/nodeServer.js",
+            "program": "${workspaceFolder}/lib/examples/demo1/nodeServer.js",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]
