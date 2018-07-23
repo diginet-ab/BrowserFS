@@ -218,15 +218,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
   }
 
   public static isAvailable(): boolean {
-    // In Safari's private browsing mode, MongoDB.open returns NULL.
-    // In Firefox, it throws an exception.
-    // In Chrome, it "just works", and clears the database when you leave the page.
-    // Untested: Opera, IE.
-    try {
-      return typeof indexedDB !== "undefined" && null !== indexedDB.open("__browserfs_test__");
-    } catch (e) {
-      return false;
-    }
+    return true;
   }
   /**
    * **Deprecated. Use MongoDB.Create() method instead.**

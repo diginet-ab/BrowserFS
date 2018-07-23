@@ -45,3 +45,4 @@ if (typeof(ArrayBuffer) !== 'undefined' && typeof(Uint8Array) !== 'undefined') {
 }
 
 export * from './core/browserfs';
+export { default as FS } from './core/FS';
