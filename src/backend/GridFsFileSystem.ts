@@ -181,7 +181,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
     },
     transport: {
       type: "function",
-      optional: false,
+      optional: true,
       description: "Transport type to use."
     }
   };
