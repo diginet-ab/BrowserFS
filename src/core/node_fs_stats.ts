@@ -61,6 +61,11 @@ export default class Stats implements fs.Stats {
   // XXX: Some file systems stash data on stats objects.
   public fileData: Buffer | null = null;
 
+  public atimeMs: number;
+  public mtimeMs: number;
+  public ctimeMs: number;
+  public birthtimeMs: number;
+
   /**
    * Provides information about a particular entry in the file system.
    * @param [Number] item_type type of the item (FILE, DIRECTORY, SYMLINK, or SOCKET)

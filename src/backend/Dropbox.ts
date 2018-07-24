@@ -1,4 +1,5 @@
-/// <reference types="dropbox" />
+//// <reference types="dropbox" />
+import "dropbox";
 import PreloadFile from '../generic/preload_file';
 import {BaseFileSystem, FileSystem, BFSOneArgCallback, BFSCallback, FileSystemOptions} from '../core/file_system';
 import {FileFlag} from '../core/file_flag';

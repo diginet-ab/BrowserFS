@@ -1,11 +1,13 @@
 {
     "cSpell.words": [
         "backends",
+        "blocksize",
         "browserfs",
         "buble",
         "dbro",
         "dbrot",
         "dbrw",
+        "emscripten",
         "fubar'd",
         "hejdå",
         "hejsan",
@@ -13,10 +15,13 @@
         "inode",
         "jvilk",
         "pako",
+        "polyfills",
         "readwrite",
+        "struct",
         "svejs",
         "typedoc",
         "umass",
+        "utime",
         "vilk"
     ],
     "search.exclude": {

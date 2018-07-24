@@ -97,7 +97,7 @@
     "@diginet/ds-mongodb": "^1.0.33",
     "@diginet/ds-nodes": "^1.0.74",
     "@types/filesystem": "0.0.28",
-    "@types/node": "^7.0.67",
+    "@types/node": "^10.5.2",
     "async": "^2.5.0",
     "dropbox": "^2.5.13",
     "pako": "^1.0.5"
