@@ -24,6 +24,10 @@ function convertError(e: {name: string}, message: string = e.toString()): ApiErr
  }
 }
 */
+
+function convertPath(inData: string): string {
+  return inData.replace("/", "!");
+}
 /**
  * Produces a new onerror handler for MongoDB. Our errors are always fatal, so we
  * handle them generically: Call the user-supplied callback with a translated
@@ -46,9 +50,9 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   constructor(public store: GridFs) { }
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
-    this.store.fileExists(key.replace("/", "!")).then((value) => {
+    this.store.fileExists(convertPath(key)).then((value) => {
       if (value) {
-        this.store.download(key.replace("/", "!")).then((value) => {
+        this.store.download(convertPath(key)).then((value) => {
           cb(null, value);
         }).catch((reason) => {
           cb(null, undefined);
@@ -71,7 +75,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
-    this.store.upload(key.replace("/", "!"), data).then((result) => {
+    this.store.upload(convertPath(key), data).then((result) => {
       cb(null, result);
     }).catch((reason) => {
       cb(null, undefined);
@@ -79,7 +83,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public del(key: string, cb: BFSOneArgCallback): void {
-    this.store.deleteFile(key.replace("/", "!")).then((result) => {
+    this.store.deleteFile(convertPath(key)).then((result) => {
       cb();
     }).catch((reason) => {
       cb();
@@ -192,10 +196,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
   public static async Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
     try {
       const gfs = new GridFsFileSystem(typeof (opts.cacheSize) === 'number' ? opts.cacheSize : 100);
-      let T = opts.transport;
-      if (!T) {
-        T = BrowserWebSocketTransport;
-      }
+      const T = opts.transport || BrowserWebSocketTransport;
       const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(":")[0] + ":" + opts.port.toString(), false));
       await networkNode.open();
       const db = new RpcClient<GridFs>(networkNode, "GridFs").api(opts.networkNode);

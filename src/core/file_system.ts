@@ -2,7 +2,7 @@ import {ApiError, ErrorCode} from './api_error';
 import Stats from './node_fs_stats';
 import {File} from './file';
 import {FileFlag, ActionType} from './file_flag';
-import * as path from 'path';
+import { path } from './path_proxy';
 import {fail} from './util';
 
 export type BFSOneArgCallback = (e?: ApiError | null) => any;
@@ -35,7 +35,7 @@ export type BFSThreeArgCallback<T, U> =
  * Note that a file system may choose to implement supplemental methods for
  * efficiency reasons.
  *
- * The code for some supplemental methods was adapted directly from NodeJS's
+ * The code for some supplemental methods was adapted directly from NodeJS
  * fs.js source code.
  *
  * ### Optional Methods
