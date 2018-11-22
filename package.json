@@ -97,7 +97,7 @@
   },
   "dependencies": {
     "@diginet/ds-mongodb": "^1.1.7",
-    "@diginet/ds-nodes": "^1.0.91",
+    "@diginet/ds-nodes": "^1.0.93",
     "async": "^2.5.0",
     "dropbox": "^2.5.13",
     "pako": "^1.0.5"

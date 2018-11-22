@@ -230,7 +230,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
       const T = opts.transport || BrowserWebSocketTransport
       const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(':')[0] + ':' + opts.port.toString(), false))
       await networkNode.open()
-      const db = new RpcClient<GridFs>(networkNode, 'GridFs').client(opts.networkNode)
+      const db = new RpcClient<GridFs>(networkNode, 'GridFs').client(opts.networkNode, "GridFs")
       //const value = await db.open(opts.databaseName ? opts.databaseName : "browserFsDb");
       const value = await db.call('open', [opts.databaseName ? opts.databaseName : 'browserFsDb'])
       if (value) {
