@@ -16,6 +16,7 @@ import HTTPRequest from '../backend/HTTPRequest';
 import ZipFS from '../backend/ZipFS';
 import IsoFS from '../backend/IsoFS';
 import { GridFsFileSystem } from '../backend/GridFsFileSystem';
+import { NodeFsFileSystem } from '../backend/NodeFsFileSystem';
 
 // Monkey-patch `Create` functions to check options before file system initialization.
 [AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, ZipFS, GridFsFileSystem].forEach((fsType: FileSystemConstructor) => {
@@ -40,7 +41,7 @@ import { GridFsFileSystem } from '../backend/GridFsFileSystem';
 /**
  * @hidden
  */
-const Backends = { AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, XmlHttpRequest: HTTPRequest, ZipFS, GridFsFileSystem };
+const Backends = { AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, XmlHttpRequest: HTTPRequest, ZipFS, GridFsFileSystem, NodeFsFileSystem };
 // Make sure all backends cast to FileSystemConstructor (for type checking)
 const _: {[name: string]: FileSystemConstructor} = Backends;
 // tslint:disable-next-line:no-unused-expression

@@ -99,6 +99,7 @@
     "@diginet/ds-mongodb": "^1.1.7",
     "@diginet/ds-nodes": "^1.0.93",
     "@types/async-lock": "^1.1.0",
+    "@diginet/ds-node-fs": "^1.0.2",
     "@types/filesystem": "0.0.28",
     "@types/node": "^10.5.2",
     "async": "^2.5.0",
