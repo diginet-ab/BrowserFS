@@ -6,6 +6,7 @@ import { RpcClient, Transport, Client } from '@diginet/ds-nodes'
 import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
+import * as AsyncLock from "async-lock";
 
 /**
  * Converts a Exception or a Error from an MongoDB event into a
@@ -49,6 +50,7 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  * @hidden
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
+  protected static lock: AsyncLock = new AsyncLock();
   constructor(public store: Client<GridFs>) {}
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
@@ -58,6 +60,7 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
           cb(null, value);
         }).catch((reason) => {
           cb(null, undefined);
+          done();
         });
       } else {
         cb(null, undefined);
@@ -65,6 +68,35 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
     }).catch((reason) => {
       cb(null, undefined);
     });*/
+    /*
+    MongoDBROTransaction.lock.acquire(
+      "key",
+      async (done) => {
+        // async work
+        this.store.fileExists(convertPath(key)).then((value) => {
+          if (value) {
+            this.store.download(convertPath(key)).then((value) => {
+              cb(null, value);
+              done();
+            }).catch((reason) => {
+              cb(null, undefined);
+              done();
+            });
+          } else {
+            cb(null, undefined);
+            done();
+          }
+        }).catch((reason) => {
+          cb(null, undefined);
+          done();
+        });
+      },
+      async (err, ret) => {
+        // lock released
+      },
+    );
+    
+    */
     this.store
       .call('fileExists', [convertPath(key)])
       .then(value => {
@@ -91,8 +123,20 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
  * @hidden
  */
 export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncKeyValueRWTransaction, AsyncKeyValueROTransaction {
+  private done: () => void;
   constructor(store: Client<GridFs>) {
     super(store)
+    MongoDBROTransaction.lock.acquire(
+      "key",
+      async (done) => {
+        // async work
+        this.done = done;
+        // done();
+      async (err, ret) => {
+      },
+        // lock released
+      },
+    );
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
@@ -123,6 +167,9 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public commit(cb: BFSOneArgCallback): void {
+    if (this.done) {
+      this.done();
+    }
     // Return to the event loop to commit the transaction.
     setTimeout(cb, 0)
   }

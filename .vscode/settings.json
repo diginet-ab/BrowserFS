@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "backend",
         "backends",
         "blocksize",
         "browserfs",
@@ -23,10 +24,12 @@
         "readwrite",
         "struct",
         "svejs",
+        "switcharoo",
         "typedoc",
         "umass",
         "utime",
-        "vilk"
+        "vilk",
+        "yxxx"
     ],
     "search.exclude": {
         "**/node_modules": true
