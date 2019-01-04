@@ -25,3 +25,5 @@ coverage
 /gulptasks.js*
 dist
 .tscache
+
+*.tgz

@@ -41,7 +41,7 @@ import { NodeFsFileSystem } from '../backend/NodeFsFileSystem';
 /**
  * @hidden
  */
-const Backends = { AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, XmlHttpRequest: HTTPRequest, ZipFS, GridFsFileSystem, NodeFsFileSystem };
+const Backends = { AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, XmlHttpRequest: HTTPRequest, ZipFS, GridFsFileSystem /*, NodeFsFileSystem*/ };
 // Make sure all backends cast to FileSystemConstructor (for type checking)
 const _: {[name: string]: FileSystemConstructor} = Backends;
 // tslint:disable-next-line:no-unused-expression

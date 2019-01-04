@@ -6,7 +6,7 @@ import { RpcClient, Transport, Client } from '@diginet/ds-nodes'
 import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
-import * as AsyncLock from 'async-lock'
+import AsyncLock from 'async-lock'
 
 /**
  * Converts a Exception or a Error from an MongoDB event into a
@@ -98,7 +98,7 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
 
     */
     MongoDBROTransaction.lock.acquire(
-      "key",
+      "keyXXXX",
       async (done) => {
         // async work
         this.store

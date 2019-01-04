@@ -1,14 +1,15 @@
 import "babel-polyfill";
-import { BrowserWebSocketTransport } from "@diginet/ds-nodes";
+import { NetworkNode, BrowserWebSocketTransport } from "@diginet/ds-nodes";
 import * as BrowserFS from "../../../src/core/browserfs";
-/*
+import * as AsyncLock from "async-lock";
+
 const node = new NetworkNode("webClient", new BrowserWebSocketTransport(window.location.host.split(":")[0] + ":7656", false));
 
 setInterval(() => {
     // node.emit("sendMessage", "Hello")
     node.send("Hello", "server");
 }, 2000);
-*/
+
 // Installs globals onto window:
 // * Buffer
 // * require (monkey-patches if already defined)
@@ -36,6 +37,7 @@ BrowserFS.configure({
         "/local3": {
             fs: "LocalStorage"
         },
+/*        
         "/local4": {
             fs: "AsyncMirror",
             options: {
@@ -52,7 +54,9 @@ BrowserFS.configure({
                     }
                 }
             },
-        }/*,
+        }
+*/        
+        ,
         "/local4": {
             fs: "GridFsFileSystem",
             // fs: "LocalStorage",
@@ -63,7 +67,7 @@ BrowserFS.configure({
                 port: 7656,
                 databaseName: "myBrowserDb"
             }
-        }*/
+        }
     }
 }, function(e) {
     if (e) {
@@ -78,10 +82,10 @@ BrowserFS.configure({
     // const path = require('path');
     fs.writeFileSync("/local2/hejsan.ts", "hello world");
     fs.writeFileSync("/local3/hejdå.ts", "hej där");
-    fs.writeFileSync("/local4/testing.txt", "Fil i GridFS???");
-    const s = fs.readFileSync("/local4/testing.txt", "utf8");
+    // fs.writeFileSync("/local4/testing.txt", "Fil i GridFS???");
+    // const s = fs.readFileSync("/local4/testing.txt", "utf8");
     // tslint:disable-next-line:no-console
-    console.log(s);
+    // console.log(s);
     fs.writeFile('/local4/test.txt', 'Cool, I can do this in the browser!', function(err) {
         fs.readFile('/local4/test.txt', function(e, rv?: Buffer) {
             if (err) {
