@@ -16,7 +16,7 @@ import HTTPRequest from '../backend/HTTPRequest';
 import ZipFS from '../backend/ZipFS';
 import IsoFS from '../backend/IsoFS';
 import { GridFsFileSystem } from '../backend/GridFsFileSystem';
-import { NodeFsFileSystem } from '../backend/NodeFsFileSystem';
+// import { NodeFsFileSystem } from '../backend/NodeFsFileSystem';
 
 // Monkey-patch `Create` functions to check options before file system initialization.
 [AsyncMirror, Dropbox, Emscripten, FolderAdapter, HTML5FS, InMemory, IndexedDB, IsoFS, LocalStorage, MountableFileSystem, OverlayFS, WorkerFS, HTTPRequest, ZipFS, GridFsFileSystem].forEach((fsType: FileSystemConstructor) => {
