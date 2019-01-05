@@ -51,12 +51,24 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
-  protected asyncKey = "theAsyncKeyInGridFsFileSystem"
-  protected inWriteTransaction = 0
-  constructor(public store: Client<GridFs>) {}
+  protected done: () => void
+  constructor(public store: Client<GridFs>, protected asyncKey: string) {
+    this.lock.acquire(
+      this.asyncKey,
+      async (done) => {
+        // async work
+        this.done = done
+        // done()
+      },
+      async (err, ret) => {
+        // lock released
+      },
+    )
+  }
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
-    /*this.store.fileExists(convertPath(key)).then((value) => {
+    /*
+    this.store.fileExists(convertPath(key)).then((value) => {
       if (value) {
         this.store.download(convertPath(key)).then((value) => {
           cb(null, value);
@@ -69,68 +81,34 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
       }
     }).catch((reason) => {
       cb(null, undefined);
-    });*/
-    /*
-    MongoDBROTransaction.lock.acquire(
-      "key",
-      async (done) => {
-        // async work
-        this.store.fileExists(convertPath(key)).then((value) => {
-          if (value) {
-            this.store.download(convertPath(key)).then((value) => {
-              cb(null, value);
-              done();
-            }).catch((reason) => {
-              cb(null, undefined);
-              done();
-            });
-          } else {
-            cb(null, undefined);
-            done();
-          }
-        }).catch((reason) => {
-          cb(null, undefined);
-          done();
-        });
-      },
-      async (err, ret) => {
-        // lock released
-      },
-    );
-
+    });
     */
-    this.lock.acquire(
-      this.inWriteTransaction ? this.asyncKey + "_read": this.asyncKey,
-      async (done) => {
-        // async work
-        this.store
-          .call('fileExists', [convertPath(key)])
-          .then((value: any) => {
-            if (value) {
-              this.store
-                .call('download', [convertPath(key)])
-                .then((value2: Buffer | undefined) => {
-                  cb(null, value2)
-                  done()
-                })
-                .catch((reason: any) => {
-                  cb(null, undefined)
-                  done()
-                })
-            } else {
+    this.store
+      .call('fileExists', [convertPath(key)])
+      .then((value: any) => {
+        if (value) {
+          this.store
+            .call('download', [convertPath(key)])
+            .then((value2: Buffer | undefined) => {
+              cb(null, value2)
+            })
+            .catch((reason: any) => {
               cb(null, undefined)
-              done()
-            }
-          })
-          .catch((reason: any) => {
-            cb(null, undefined)
-            done()
-          })
-      },
-      async (err, ret) => {
-        // lock released
-      }
-    )
+            })
+        } else {
+          cb(null, undefined)
+        }
+      })
+      .catch((reason: any) => {
+        cb(null, undefined)
+      })
+  }
+  public commit(cb: BFSOneArgCallback): void {
+    // Return to the event loop to commit the transaction.
+    setTimeout(() => {
+      cb()
+      this.done()
+    }, 0)
   }
 }
 
@@ -138,21 +116,8 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
  * @hidden
  */
 export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncKeyValueRWTransaction, AsyncKeyValueROTransaction {
-  private done: () => void
-  constructor(store: Client<GridFs>) {
-    super(store)
-    this.inWriteTransaction++
-    this.lock.acquire(
-      this.asyncKey,
-      async (done) => {
-        // async work
-        this.done = done
-        // done()
-      },
-      async (err, ret) => {
-        // lock released
-      },
-    )
+  constructor(store: Client<GridFs>, protected asyncKey: string) {
+    super(store, asyncKey)
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
@@ -182,23 +147,13 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
       })
   }
 
-  public commit(cb: BFSOneArgCallback): void {
-    if (this.done) {
-      this.done()
-    }
-    // Return to the event loop to commit the transaction.
-    setTimeout(() => {
-      cb()
-      this.inWriteTransaction--
-    }, 0)
-  }
-
   public abort(cb: BFSOneArgCallback): void {
     cb(null)
   }
 }
 
 export class MongoDBStore implements AsyncKeyValueStore {
+  protected asyncKey = uuidv4().toString()
   constructor(private storeName: string, private db: Client<GridFs>) {}
 
   public name(): string {
@@ -214,9 +169,9 @@ export class MongoDBStore implements AsyncKeyValueStore {
   public beginTransaction(type: 'readwrite'): AsyncKeyValueRWTransaction
   public beginTransaction(type: 'readonly' | 'readwrite' = 'readonly'): AsyncKeyValueROTransaction {
     if (type === 'readwrite') {
-      return new MongoDBRWTransaction(this.db)
+      return new MongoDBRWTransaction(this.db, this.asyncKey)
     } else if (type === 'readonly') {
-      return new MongoDBROTransaction(this.db)
+      return new MongoDBROTransaction(this.db, this.asyncKey)
     } else {
       throw new ApiError(ErrorCode.EINVAL, 'Invalid transaction type.')
     }
