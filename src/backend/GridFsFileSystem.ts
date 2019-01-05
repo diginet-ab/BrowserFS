@@ -51,7 +51,7 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
-  protected asyncKey = uuidv4().toString()
+  protected asyncKey = "theAsyncKeyInGridFsFileSystem"
   protected inWriteTransaction = 0
   constructor(public store: Client<GridFs>) {}
 
