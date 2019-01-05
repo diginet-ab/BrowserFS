@@ -6,7 +6,7 @@ import { RpcClient, Transport, Client } from '@diginet/ds-nodes'
 import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
-import AsyncLock from 'async-lock'
+import * as AsyncLock from 'async-lock'
 
 /**
  * Converts a Exception or a Error from an MongoDB event into a
@@ -50,7 +50,7 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  * @hidden
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
-  protected static lock: AsyncLock = new AsyncLock()
+  protected static lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
   constructor(public store: Client<GridFs>) {}
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
