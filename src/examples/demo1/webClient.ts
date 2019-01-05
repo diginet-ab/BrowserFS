@@ -55,7 +55,6 @@ BrowserFS.configure({
             },
         }
 */        
-        ,
         "/local4": {
             fs: "GridFsFileSystem",
             // fs: "LocalStorage",
