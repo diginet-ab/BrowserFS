@@ -7,6 +7,7 @@ import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebS
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
 import * as AsyncLock from 'async-lock'
+import { V4MAPPED } from 'dns';
 
 /**
  * Converts a Exception or a Error from an MongoDB event into a
@@ -50,7 +51,9 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  * @hidden
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
-  protected static lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
+  protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
+  protected asyncKey = uuidv4().toString()
+  protected inTransaction = false
   constructor(public store: Client<GridFs>) {}
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
@@ -97,8 +100,8 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
     );
 
     */
-    MongoDBROTransaction.lock.acquire(
-      "keyXXXX",
+    this.lock.acquire(
+      this.inTransaction ? this.asyncKey + "_read": this.asyncKey,
       async (done) => {
         // async work
         this.store
@@ -139,9 +142,10 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   private done: () => void
   constructor(store: Client<GridFs>) {
     super(store)
-    MongoDBROTransaction.lock.acquire(
-      'key',
+    this.lock.acquire(
+      this.asyncKey,
       async (done) => {
+        this.inTransaction = true
         // async work
         this.done = done
         // done()
@@ -182,6 +186,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   public commit(cb: BFSOneArgCallback): void {
     if (this.done) {
       this.done()
+      this.inTransaction = false
     }
     // Return to the event loop to commit the transaction.
     setTimeout(cb, 0)

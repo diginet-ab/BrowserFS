@@ -1,7 +1,6 @@
 import "babel-polyfill";
 import { NetworkNode, BrowserWebSocketTransport } from "@diginet/ds-nodes";
 import * as BrowserFS from "../../../src/core/browserfs";
-import AsyncLock from "async-lock";
 
 const node = new NetworkNode("webClient", new BrowserWebSocketTransport(window.location.host.split(":")[0] + ":7656", false));
 
