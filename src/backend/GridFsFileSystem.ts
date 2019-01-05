@@ -109,11 +109,11 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
 
   protected asyncLock(cb: () => void): void {
     if (!this.done) {
-      this.lock.acquire(this.asyncKey, async (done) => {
+      this.lock.acquire(this.asyncKey, (done) => {
         // async work
         this.done = done
         cb()
-      }, async (err, ret) => {
+      }, (err, ret) => {
         // lock released
       })
     } else {
@@ -138,7 +138,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
-    this.asyncLock(async () => {
+    this.asyncLock(() => {
       /*this.store.upload(convertPath(key), data).then((result) => {
         cb(null, result);
       }).catch((reason) => {
@@ -156,7 +156,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public del(key: string, cb: BFSOneArgCallback): void {
-    this.asyncLock(async () => {
+    this.asyncLock(() => {
       this.store
       .call('deleteFile', [convertPath(key)])
       .then((result: any) => {
