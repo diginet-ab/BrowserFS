@@ -51,39 +51,28 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
-  protected done: () => void
+  protected done?: () => void
   constructor(public store: Client<GridFs>, protected asyncKey: string) {
-    this.lock.acquire(
-      this.asyncKey,
-      async (done) => {
-        // async work
-        this.done = done
-        // done()
-      },
-      async (err, ret) => {
-        // lock released
-      },
-    )
   }
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
-    /*
-    this.store.fileExists(convertPath(key)).then((value) => {
-      if (value) {
-        this.store.download(convertPath(key)).then((value) => {
-          cb(null, value);
-        }).catch((reason) => {
+    this.asyncLock(() => {
+      /*
+      this.store.fileExists(convertPath(key)).then((value) => {
+        if (value) {
+          this.store.download(convertPath(key)).then((value) => {
+            cb(null, value);
+          }).catch((reason) => {
+            cb(null, undefined);
+          });
+        } else {
           cb(null, undefined);
-          done();
-        });
-      } else {
+        }
+      }).catch((reason) => {
         cb(null, undefined);
-      }
-    }).catch((reason) => {
-      cb(null, undefined);
-    });
-    */
-    this.store
+      });
+      */
+      this.store
       .call('fileExists', [convertPath(key)])
       .then((value: any) => {
         if (value) {
@@ -102,13 +91,41 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
       .catch((reason: any) => {
         cb(null, undefined)
       })
+    })
   }
+
+  public abort(cb: BFSOneArgCallback): void {
+    this.asyncDone()
+    cb(null)
+  }
+
   public commit(cb: BFSOneArgCallback): void {
     // Return to the event loop to commit the transaction.
     setTimeout(() => {
+      this.asyncDone()
       cb()
-      this.done()
     }, 0)
+  }
+
+  protected asyncLock(cb: () => void): void {
+    if (!this.done) {
+      this.lock.acquire(this.asyncKey, async (done) => {
+        // async work
+        this.done = done
+        cb()
+      }, async (err, ret) => {
+        // lock released
+      })
+    } else {
+      cb()
+    }
+  }
+
+  protected asyncDone() {
+    if (this.done) {
+      this.done()
+      this.done = undefined
+    }
   }
 }
 
@@ -121,12 +138,13 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
-    /*this.store.upload(convertPath(key), data).then((result) => {
-      cb(null, result);
-    }).catch((reason) => {
-      cb(null, undefined);
-    });*/
-    this.store
+    this.asyncLock(async () => {
+      /*this.store.upload(convertPath(key), data).then((result) => {
+        cb(null, result);
+      }).catch((reason) => {
+        cb(null, undefined);
+      });*/
+      this.store
       .call('upload', [convertPath(key), data])
       .then((result: boolean | undefined) => {
         cb(null, result)
@@ -134,10 +152,12 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
       .catch((reason: any) => {
         cb(null, undefined)
       })
+    })
   }
 
   public del(key: string, cb: BFSOneArgCallback): void {
-    this.store
+    this.asyncLock(async () => {
+      this.store
       .call('deleteFile', [convertPath(key)])
       .then((result: any) => {
         cb()
@@ -145,10 +165,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
       .catch((reason: any) => {
         cb()
       })
-  }
-
-  public abort(cb: BFSOneArgCallback): void {
-    cb(null)
+    })
   }
 }
 
