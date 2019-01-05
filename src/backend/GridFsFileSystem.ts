@@ -187,7 +187,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
       this.done()
     }
     // Return to the event loop to commit the transaction.
-    setTimeout((cb) => {
+    setTimeout(() => {
       cb()
       this.inWriteTransaction = false
     }, 0)
