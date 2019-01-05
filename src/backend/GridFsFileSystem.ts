@@ -52,7 +52,7 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
   protected asyncKey = uuidv4().toString()
-  protected inWriteTransaction = false
+  protected inWriteTransaction = 0
   constructor(public store: Client<GridFs>) {}
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
@@ -141,7 +141,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
   private done: () => void
   constructor(store: Client<GridFs>) {
     super(store)
-    this.inWriteTransaction = true
+    this.inWriteTransaction++
     this.lock.acquire(
       this.asyncKey,
       async (done) => {
@@ -189,7 +189,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
     // Return to the event loop to commit the transaction.
     setTimeout(() => {
       cb()
-      this.inWriteTransaction = false
+      this.inWriteTransaction--
     }, 0)
   }
 
