@@ -48,9 +48,9 @@ export default class PreloadFile<T extends FileSystem> extends BaseFile {
     // modified.
     // Note: Only actually matters if file is readable, as writeable modes may
     // truncate/append to file.
-    if (this._stat.size !== this._buffer.length && this._flag.isReadable()) {
+    /* if (this._stat.size !== this._buffer.length && this._flag.isReadable()) {
       throw new Error(`Invalid buffer: Buffer is ${this._buffer.length} long, yet Stats object specifies that file is ${this._stat.size} long.`);
-    }
+    } */
   }
 
   /**
