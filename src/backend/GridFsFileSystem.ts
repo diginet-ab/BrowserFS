@@ -2,7 +2,7 @@ import { BFSOneArgCallback, BFSCallback, FileSystemOptions } from '../core/file_
 import { AsyncKeyValueROTransaction, AsyncKeyValueRWTransaction, AsyncKeyValueStore, AsyncKeyValueFileSystem } from '../generic/key_value_filesystem'
 import { ApiError, ErrorCode } from '../core/api_error'
 import { GridFs } from '@diginet/ds-mongodb'
-import { RpcClient, Transport, Client } from '@diginet/ds-nodes'
+import { RpcClient, Transport } from '@diginet/ds-nodes'
 import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
@@ -52,45 +52,24 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
   protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
   protected done?: () => void
-  constructor(public store: Client<GridFs>, protected asyncKey: string) {
+  constructor(public store: GridFs, protected asyncKey: string) {
   }
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
     this.asyncLock(() => {
-      /*
-      this.store.fileExists(convertPath(key)).then((value) => {
+      this.store.fileExists(convertPath(key)).then((value: any) => {
         if (value) {
-          this.store.download(convertPath(key)).then((value) => {
-            cb(null, value);
-          }).catch((reason) => {
+          this.store.download(convertPath(key)).then((value2: any) => {
+            cb(null, value2);
+          }).catch((reason: Error) => {
             cb(null, undefined);
           });
         } else {
           cb(null, undefined);
         }
-      }).catch((reason) => {
+      }).catch((reason: Error) => {
         cb(null, undefined);
       });
-      */
-      this.store
-      .call('fileExists', [convertPath(key)])
-      .then((value: any) => {
-        if (value) {
-          this.store
-            .call('download', [convertPath(key)])
-            .then((value2: Buffer | undefined) => {
-              cb(null, value2)
-            })
-            .catch((reason: any) => {
-              cb(null, undefined)
-            })
-        } else {
-          cb(null, undefined)
-        }
-      })
-      .catch((reason: any) => {
-        cb(null, undefined)
-      })
     })
   }
 
@@ -133,32 +112,23 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
  * @hidden
  */
 export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncKeyValueRWTransaction, AsyncKeyValueROTransaction {
-  constructor(store: Client<GridFs>, protected asyncKey: string) {
+  constructor(store: GridFs, protected asyncKey: string) {
     super(store, asyncKey)
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
     this.asyncLock(() => {
-      /*this.store.upload(convertPath(key), data).then((result) => {
+      this.store.upload(convertPath(key), data).then((result: any) => {
         cb(null, result);
-      }).catch((reason) => {
+      }).catch((reason: Error) => {
         cb(null, undefined);
-      });*/
-      this.store
-      .call('upload', [convertPath(key), data])
-      .then((result: boolean | undefined) => {
-        cb(null, result)
-      })
-      .catch((reason: any) => {
-        cb(null, undefined)
-      })
+      });
     })
   }
 
   public del(key: string, cb: BFSOneArgCallback): void {
     this.asyncLock(() => {
-      this.store
-      .call('deleteFile', [convertPath(key)])
+      this.store.deleteFile(convertPath(key))
       .then((result: any) => {
         cb()
       })
@@ -171,7 +141,7 @@ export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncK
 
 export class MongoDBStore implements AsyncKeyValueStore {
   protected asyncKey = uuidv4().toString()
-  constructor(private storeName: string, private db: Client<GridFs>) {}
+  constructor(private storeName: string, private db: GridFs) {}
 
   public name(): string {
     return GridFsFileSystem.Name + ' - ' + this.storeName
@@ -268,9 +238,9 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
       const T = opts.transport || BrowserWebSocketTransport
       const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(':')[0] + ':' + opts.port.toString(), false))
       await networkNode.open()
-      const db = new RpcClient<GridFs>(networkNode, 'GridFs').client(opts.networkNode, "GridFs")
+      const db = new RpcClient<GridFs>(networkNode, 'GridFs').api(opts.networkNode)
       //const value = await db.open(opts.databaseName ? opts.databaseName : "browserFsDb");
-      const value = await db.call('open', [opts.databaseName ? opts.databaseName : 'browserFsDb'])
+      const value = await db.open(opts.databaseName ? opts.databaseName : 'browserFsDb')
       if (value) {
         const store = new MongoDBStore(opts.storeName ? opts.storeName : 'browserfs', db)
         gfs.init(store, (e?) => {
