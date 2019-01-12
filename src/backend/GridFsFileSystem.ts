@@ -261,7 +261,32 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
   public static isAvailable(): boolean {
     return true
   }
-  /**
+
+  public supportsLinks(): boolean {
+    return true;
+  }
+
+  public supportsSymlinks(): boolean {
+    return true;
+  }
+
+  public link(srcpath: string, dstpath: string, cb: BFSOneArgCallback): void {
+  }
+
+  public linkSync(srcpath: string, dstpath: string): void {
+  }
+
+  public symlinkSync(srcpath: string, dstpath: string, type: string): void {
+  }
+
+  public readlink(p: string, cb: BFSCallback<string>): void {
+  }
+
+  public readlinkSync(p: string): string {
+    return '';
+  }
+
+/**
    * **Deprecated. Use MongoDB.Create() method instead.**
    *
    * Constructs an MongoDB file system.

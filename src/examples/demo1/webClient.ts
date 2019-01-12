@@ -19,6 +19,16 @@ BrowserFS.install(window);
 // Configures BrowserFS to use the LocalStorage file system.
 
 BrowserFS.configure({
+    fs: "GridFsFileSystem",
+    // fs: "LocalStorage",
+    options: {
+        storeName: "HelloFileSystem",
+        host: "127.0.0.1",
+        networkNode: "server",
+        port: 7656,
+        databaseName: "fs"
+    }
+/*    
     fs: "MountableFileSystem",
     options: {
         "/local": {
@@ -36,6 +46,7 @@ BrowserFS.configure({
         "/local3": {
             fs: "LocalStorage"
         },
+*/        
 /*        
         "/local4": {
             fs: "AsyncMirror",
@@ -54,7 +65,9 @@ BrowserFS.configure({
                 }
             },
         }
-*/        
+*/
+
+/*
         "/local4": {
             fs: "GridFsFileSystem",
             // fs: "LocalStorage",
@@ -63,10 +76,11 @@ BrowserFS.configure({
                 host: "127.0.0.1",
                 networkNode: "server",
                 port: 7656,
-                databaseName: "myBrowserDb"
+                databaseName: "fs"
             }
         }
     }
+*/        
 }, function(e) {
     if (e) {
         // An error happened!
@@ -78,14 +92,14 @@ BrowserFS.configure({
     // Otherwise, BrowserFS is ready-to-use!
     const fs = BrowserFS.BFSRequire("fs");
     // const path = require('path');
-    fs.writeFileSync("/local2/hejsan.ts", "hello world");
-    fs.writeFileSync("/local3/hejdå.ts", "hej där");
+    // fs.writeFileSync("/local2/hejsan.ts", "hello world");
+    // fs.writeFileSync("/local3/hejdå.ts", "hej där");
     // fs.writeFileSync("/local4/testing.txt", "Fil i GridFS???");
     // const s = fs.readFileSync("/local4/testing.txt", "utf8");
     // tslint:disable-next-line:no-console
     // console.log(s);
-    fs.writeFile('/local4/test.txt', 'Cool, I can do this in the browser!', function(err) {
-        fs.readFile('/local4/test.txt', function(e, rv?: Buffer) {
+    fs.writeFile('/test.txt', 'Cool, I can do this in the browser!', function(err) {
+        fs.readFile('/link', function(e, rv?: Buffer) {
             if (err) {
                 // tslint:disable-next-line:no-console
                 console.log("Error: " + err.message);
@@ -104,6 +118,15 @@ BrowserFS.configure({
                 if (container) {
                     container.appendChild(p);
                 }
+                fs.mkdir('/test', undefined, (e) => {
+                    if (!e) {
+                        fs.symlink('/link', '/test.txt', undefined, e => {
+                            if (!e) {
+        
+                            }
+                        })        
+                    }
+                })
             }
         });
 /*

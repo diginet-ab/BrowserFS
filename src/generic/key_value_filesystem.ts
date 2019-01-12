@@ -44,7 +44,7 @@ function GenerateRandomID(): string {
  * with 'e' and returns false. Otherwise, returns true.
  * @hidden
  */
-function noError(e: ApiError | undefined | null, cb: (e: ApiError) => void): boolean {
+export function noError(e: ApiError | undefined | null, cb: (e: ApiError) => void): boolean {
   if (e) {
     cb(e);
     return false;
@@ -538,7 +538,7 @@ export class SyncKeyValueFileSystem extends SynchronousFileSystem {
    *   the parent.
    * @return string The ID of the file's inode in the file system.
    */
-  private _findINode(tx: SyncKeyValueROTransaction, parent: string, filename: string): string {
+  public _findINode(tx: SyncKeyValueROTransaction, parent: string, filename: string): string {
     const readDirectory = (inode: Inode): string => {
       // Get the root's directory listing.
       const dirList = this.getDirListing(tx, parent, inode);
@@ -1389,6 +1389,45 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
           });
         }
       }
+    });
+  }
+  public symlink(srcpath: string, dstpath: string, type: string, cb: BFSOneArgCallback): void {
+    const parentDir = path.dirname(srcpath),
+      fname = path.basename(srcpath);
+    const tx = this.store.beginTransaction('readwrite');
+    // Step 1: Grab the dest file's inode.
+    this.findINode(tx, dstpath, (e: ApiError, inode?: Inode) => {
+      if (noError(e, cb)) {
+        // Step 2: Get the source directory's inode and directory listing
+        this.findINodeAndDirListing(tx, parentDir, (e?: ApiError | null, parentNode?: Inode, dirListing?: { [name: string]: string }): void => {
+          if (noErrorTx(e, tx, cb)) {
+            if (dirListing![fname]) {
+              // File already exists.
+              tx.abort(() => {
+                cb(ApiError.EEXIST(srcpath));
+              });
+            } else {
+              // Step 3: Commit the file's inode to the store.
+              this.addNewNode(tx, inode!.toBuffer(), (e: ApiError, fileInodeId?: string): void => {
+                if (noErrorTx(e, tx, cb)) {
+                  // Step 4: Update parent directory's listing.
+                  dirListing![fname] = fileInodeId!;
+                  tx.put(parentNode!.id, Buffer.from(JSON.stringify(dirListing)), true, (e: ApiError): void => {
+                    if (noErrorTx(e, tx, cb)) {
+                      // Step 5: Commit and return any error.
+                      tx.commit((e?: ApiError): void => {
+                        if (noErrorTx(e, tx, cb)) {
+                          cb(null);
+                        };
+                      });
+                    };
+                  });
+                };
+              });
+            };
+          };
+        });
+      };
     });
   }
 }
