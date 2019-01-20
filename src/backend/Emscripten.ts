@@ -241,9 +241,9 @@ export default class EmscriptenFileSystem extends SynchronousFileSystem {
         itemType,
         stats.size,
         stats.mode,
-        stats.atime,
-        stats.mtime,
-        stats.ctime
+        stats.atime.getTime(),
+        stats.mtime.getTime(),
+        stats.ctime.getTime()
       );
     } catch (e) {
       throw convertError(e, p);

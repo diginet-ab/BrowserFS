@@ -256,7 +256,46 @@ Once you have configured BrowserFS, you can mount it into the Emscripten file sy
 * ✗ means 'no'
 * ? means 'depends on configuration'
 
-Note that any asynchronous file system can be accessed synchronously using the [AsyncMirror](classes/_backend_asyncmirror_.asyncmirror.html) file system at the cost of preloading the entire file system into some synchronous backend (e.g., `InMemory`).
+### Citing
+
+BrowserFS is a component of the [Doppio](http://doppiojvm.org/) and [Browsix](https://browsix.org/) research projects from the PLASMA lab at the University of Massachusetts Amherst. If you decide to use BrowserFS in a project that leads to a publication, please cite the academic papers on [Doppio](https://dl.acm.org/citation.cfm?doid=2594291.2594293) and [Browsix](https://dl.acm.org/citation.cfm?id=3037727):
+
+> John Vilk and Emery D. Berger. Doppio: Breaking the Browser Language Barrier. In
+*Proceedings of the 35th ACM SIGPLAN Conference on Programming Language Design and Implementation*
+(2014), pp. 508–518.
+
+```bibtex
+@inproceedings{VilkDoppio,
+  author    = {John Vilk and
+               Emery D. Berger},
+  title     = {{Doppio: Breaking the Browser Language Barrier}},
+  booktitle = {Proceedings of the 35th {ACM} {SIGPLAN} Conference on Programming Language Design and Implementation},
+  pages     = {508--518},
+  year      = {2014},
+  url       = {http://doi.acm.org/10.1145/2594291.2594293},
+  doi       = {10.1145/2594291.2594293}
+}
+```
+
+> Bobby Powers, John Vilk, and Emery D. Berger. Browsix: Bridging the Gap Between Unix and the Browser. In *Proceedings of the Twenty-Second International Conference on Architectural Support for Programming Languages and Operating Systems* (2017), pp. 253–266.
+
+```bibtex
+@inproceedings{PowersBrowsix,
+  author    = {Bobby Powers and
+               John Vilk and
+               Emery D. Berger},
+  title     = {{Browsix: Bridging the Gap Between Unix and the Browser}},
+  booktitle = {Proceedings of the Twenty-Second International Conference on Architectural
+               Support for Programming Languages and Operating Systems},
+  pages     = {253--266},
+  year      = {2017},
+  url       = {http://doi.acm.org/10.1145/3037697.3037727},
+  doi       = {10.1145/3037697.3037727}
+}
+```
+
+
+### License
 
 <table>
   <tr>
