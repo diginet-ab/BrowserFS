@@ -18,6 +18,11 @@ setInterval(() => {
 BrowserFS.install(window);
 // Configures BrowserFS to use the LocalStorage file system.
 
+let rootFS: any
+const getFS = () => {
+    return rootFS
+}
+
 BrowserFS.configure({
     fs: "GridFsFileSystem",
     // fs: "LocalStorage",
@@ -26,7 +31,8 @@ BrowserFS.configure({
         host: "127.0.0.1",
         networkNode: "server",
         port: 7656,
-        databaseName: "fs"
+        databaseName: "fs",
+        rootFS: getFS
     }
 /*    
     fs: "MountableFileSystem",
@@ -91,6 +97,7 @@ BrowserFS.configure({
 
     // Otherwise, BrowserFS is ready-to-use!
     const fs = BrowserFS.BFSRequire("fs");
+    rootFS = fs;
     // const path = require('path');
     // fs.writeFileSync("/local2/hejsan.ts", "hello world");
     // fs.writeFileSync("/local3/hejdå.ts", "hej där");
@@ -98,7 +105,7 @@ BrowserFS.configure({
     // const s = fs.readFileSync("/local4/testing.txt", "utf8");
     // tslint:disable-next-line:no-console
     // console.log(s);
-    fs.writeFile('/test.txt', 'Cool, I can do this in the browser!', function(err) {
+    fs.writeFile('/link', 'Cooler, I can do this in the browser!', (err) => {
         fs.readFile('/link', function(e, rv?: Buffer) {
             if (err) {
                 // tslint:disable-next-line:no-console
@@ -118,11 +125,12 @@ BrowserFS.configure({
                 if (container) {
                     container.appendChild(p);
                 }
+            } else {
                 fs.mkdir('/test', undefined, (e) => {
                     if (!e) {
                         fs.symlink('/link', '/test.txt', undefined, e => {
                             if (!e) {
-        
+                                
                             }
                         })        
                     }

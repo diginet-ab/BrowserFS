@@ -7,6 +7,7 @@ import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebS
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
 import * as AsyncLock from 'async-lock'
+import FS from '../core/FS';
 
 /**
  * Converts a Exception or a Error from an MongoDB event into a
@@ -184,6 +185,8 @@ export interface GridFSOptions {
   cacheSize?: number
   // Transport class to use
   transport: typeof Transport
+  // Optional root FS for symlink access
+  rootFS: () => FS
 }
 
 /**
@@ -226,7 +229,12 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
       type: 'function',
       optional: true,
       description: 'Transport type to use.'
-    }
+    },
+    rootFS: {
+      type: 'function',
+      optional: true,
+      description: 'Optional function returning root FS for resolving symlinks.'
+    },
   }
 
   /**
@@ -234,7 +242,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
    */
   public static async Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
     try {
-      const gfs = new GridFsFileSystem(typeof opts.cacheSize === 'number' ? opts.cacheSize : 100)
+      const gfs = new GridFsFileSystem(typeof opts.cacheSize === 'number' ? opts.cacheSize : 100, opts.rootFS)
       const T = opts.transport || BrowserWebSocketTransport
       const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(':')[0] + ':' + opts.port.toString(), false))
       await networkNode.open()
@@ -270,13 +278,26 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
     return true;
   }
 
-  public link(srcpath: string, dstpath: string, cb: BFSOneArgCallback): void {
+  public async linkSync(srcpath: string, dstpath: string) {
+    await new Promise<void>((resolve, reject) => {
+      this.link(srcpath, dstpath, (e) => {
+        if (e)
+          reject(e)
+        else
+          resolve()
+      })
+    })
   }
 
-  public linkSync(srcpath: string, dstpath: string): void {
-  }
-
-  public symlinkSync(srcpath: string, dstpath: string, type: string): void {
+  public async symlinkSync(srcpath: string, dstpath: string, type: string) {
+    await new Promise<void>((resolve, reject) => {
+      this.symlink(srcpath, dstpath, type, (e) => {
+        if (e)
+          reject(e)
+        else
+          resolve()
+      })
+    })
   }
 
   public readlink(p: string, cb: BFSCallback<string>): void {
@@ -286,17 +307,7 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
     return '';
   }
 
-/**
-   * **Deprecated. Use MongoDB.Create() method instead.**
-   *
-   * Constructs an MongoDB file system.
-   * @param cb Called once the database is instantiated and ready for use.
-   *   Passes an error if there was an issue instantiating the database.
-   * @param storeName The name of this file system. You can have
-   *   multiple MongoDB file systems operating at once, but each must have
-   *   a different name.
-   */
-  constructor(cacheSize: number) {
-    super(cacheSize)
+  constructor(cacheSize: number, rootFS: () => FS) {
+    super(cacheSize, rootFS)
   }
 }

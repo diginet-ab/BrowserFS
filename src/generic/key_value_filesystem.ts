@@ -7,6 +7,8 @@ import * as path from 'path';
 import Inode from '../generic/inode';
 import PreloadFile from '../generic/preload_file';
 import {emptyBuffer} from '../core/util';
+import FS from '../core/FS';
+
 /**
  * @hidden
  */
@@ -811,7 +813,7 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
   protected store: AsyncKeyValueStore;
   private _cache: LRUCache | null = null;
 
-  constructor(cacheSize: number) {
+  constructor(cacheSize: number, public rootFS: () => FS) {
     super();
     if (cacheSize > 0) {
       this._cache = new LRUCache(cacheSize);
@@ -1011,7 +1013,20 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
             if (data === undefined) {
               cb(ApiError.ENOENT(p));
             } else {
-              cb(null, new AsyncKeyValueFile(this, p, flag, inode!.toStats(), data));
+              if ((inode!.mode & 0xf000) !== FileType.SYMLINK) {
+                cb(null, new AsyncKeyValueFile(this, p, flag, inode!.toStats(), data));
+              } else if (this.rootFS) {
+                const rootFS = this.rootFS();
+                if (rootFS && rootFS.getRootFS) {
+                  const fs = rootFS.getRootFS() as any as BaseFileSystem;
+                  if (fs)
+                    fs.openFile(data.toString(), flag, cb);
+                } else {
+                  this.openFile(data.toString(), flag, cb);
+                }
+              } else {
+                this.openFile(data.toString(), flag, cb);
+              }
             }
           }
         });
@@ -1065,23 +1080,47 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
         // Step 2: Get the file inode.
         this.getINode(tx, p, fileInodeId!, (e: ApiError, fileInode?: Inode): void => {
           if (noErrorTx(e, tx, cb)) {
-            const inodeChanged: boolean = fileInode!.update(stats);
-            // Step 3: Sync the data.
-            tx.put(fileInode!.id, data, true, (e: ApiError): void => {
-              if (noErrorTx(e, tx, cb)) {
-                // Step 4: Sync the metadata (if it changed)!
-                if (inodeChanged) {
-                  tx.put(fileInodeId!, fileInode!.toBuffer(), true, (e: ApiError): void => {
-                    if (noErrorTx(e, tx, cb)) {
-                      tx.commit(cb);
-                    }
-                  });
-                } else {
-                  // No need to sync metadata; return.
-                  tx.commit(cb);
+            if ((fileInode!.mode & 0xf000) !== FileType.SYMLINK) {
+              const inodeChanged: boolean = fileInode!.update(stats);
+              // Step 3: Sync the data.
+              tx.put(fileInode!.id, data, true, (e: ApiError): void => {
+                if (noErrorTx(e, tx, cb)) {
+                  // Step 4: Sync the metadata (if it changed)!
+                  if (inodeChanged) {
+                    tx.put(fileInodeId!, fileInode!.toBuffer(), true, (e: ApiError): void => {
+                      if (noErrorTx(e, tx, cb)) {
+                        tx.commit(cb);
+                      }
+                    });
+                  } else {
+                    // No need to sync metadata; return.
+                    tx.commit(cb);
+                  }
                 }
-              }
-            });
+              });
+            } else {
+              // Step 2: Grab the file's data.
+              tx.get(fileInode!.id, (e: ApiError, symLinkData?: Buffer): void => {
+                if (noError(e, cb)) {
+                  if (symLinkData === undefined) {
+                    cb(ApiError.ENOENT(p));
+                  } else {
+                    if (this.rootFS) {
+                      const rootFS = this.rootFS();
+                      if (rootFS && rootFS.getRootFS) {
+                        const fs = rootFS.getRootFS() as any as BaseFileSystem;
+                        if (fs)
+                          fs.writeFile(symLinkData.toString(), data, null, FileFlag.getFileFlag('w'), 0o666, cb);
+                      } else {
+                        this._sync(symLinkData.toString(), data, stats, cb);
+                      }
+                    } else {
+                      this._sync(symLinkData.toString(), data, stats, cb);
+                    }
+                  }
+                }
+              });
+            }
           }
         });
       }
@@ -1391,7 +1430,8 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
       }
     });
   }
-  public symlink(srcpath: string, dstpath: string, type: string, cb: BFSOneArgCallback): void {
+  
+  public link(srcpath: string, dstpath: string, cb: BFSOneArgCallback): void {
     const parentDir = path.dirname(srcpath),
       fname = path.basename(srcpath);
     const tx = this.store.beginTransaction('readwrite');
@@ -1428,6 +1468,18 @@ export class AsyncKeyValueFileSystem extends BaseFileSystem {
           };
         });
       };
+    });
+  }
+
+  public async symlink(srcpath: string, dstpath: string, type: string, cb: BFSOneArgCallback) {
+    const tx = this.store.beginTransaction('readwrite');
+    this.commitNewFile(tx, srcpath, FileType.SYMLINK, 0o666, Buffer.from(dstpath), (e?: ApiError | null, node?: Inode): void => {
+      // Commit and return any error.
+      tx.commit((e?: ApiError): void => {
+        if (noErrorTx(e, tx, cb)) {
+          cb(null);
+        };
+      });
     });
   }
 }
