@@ -94,7 +94,7 @@
     "docs": "typedoc --mode modules --out doc --excludePrivate --readme src/DOCS.md --name BrowserFS --module umd --ignoreCompilerErrors src"
   },
   "dependencies": {
-    "@diginet/ds-mongodb": "^1.1.11",
+    "@diginet/ds-mongodb": "^1.1.12",
     "@diginet/ds-node-fs": "^1.0.2",
     "@diginet/ds-nodes": "^1.1.1",
     "@types/async-lock": "^1.1.0",
