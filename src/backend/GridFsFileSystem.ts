@@ -6,10 +6,10 @@ import { RpcClient, Transport } from '@diginet/ds-nodes'
 import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
 import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
 import { v4 as uuidv4 } from 'uuid'
-import * as AsyncLock from 'async-lock'
+//import * as AsyncLock from 'async-lock'
 import FS from '../core/FS';
 
-/**
+/*/**
  * Converts a Exception or a Error from an MongoDB event into a
  * standardized BrowserFS API error.
  * @hidden
@@ -51,61 +51,35 @@ function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.E
  * @hidden
  */
 export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
-  protected lock: AsyncLock = (AsyncLock as any).default ? new (AsyncLock as any).default() : new AsyncLock()
   protected done?: () => void
-  constructor(public store: GridFs, protected asyncKey: string) {
+  constructor(public store: GridFs) {
   }
 
   public get(key: string, cb: BFSCallback<Buffer>): void {
-    this.asyncLock(() => {
-      this.store.fileExists(convertPath(key)).then((value: any) => {
-        if (value) {
-          this.store.download(convertPath(key)).then((value2: any) => {
-            cb(null, value2);
-          }).catch((reason: Error) => {
-            cb(null, undefined);
-          });
-        } else {
+    this.store.fileExists(convertPath(key)).then((value) => {
+      if (value) {
+        this.store.download(convertPath(key)).then((value2) => {
+          cb(null, value2);
+        }).catch((reason: Error) => {
           cb(null, undefined);
-        }
-      }).catch((reason: Error) => {
+        });
+      } else {
         cb(null, undefined);
-      });
-    })
+      }
+    }).catch((reason: Error) => {
+      cb(null, undefined);
+    });
   }
 
   public abort(cb: BFSOneArgCallback): void {
-    this.asyncDone()
     cb(null)
   }
 
   public commit(cb: BFSOneArgCallback): void {
     // Return to the event loop to commit the transaction.
     setTimeout(() => {
-      this.asyncDone()
       cb()
     }, 0)
-  }
-
-  protected asyncLock(cb: () => void): void {
-    if (!this.done) {
-      this.lock.acquire(this.asyncKey, (done) => {
-        // async work
-        this.done = done
-        cb()
-      }, (err, ret) => {
-        // lock released
-      })
-    } else {
-      cb()
-    }
-  }
-
-  protected asyncDone() {
-    if (this.done) {
-      this.done()
-      this.done = undefined
-    }
   }
 }
 
@@ -113,35 +87,30 @@ export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
  * @hidden
  */
 export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncKeyValueRWTransaction, AsyncKeyValueROTransaction {
-  constructor(store: GridFs, protected asyncKey: string) {
-    super(store, asyncKey)
+  constructor(store: GridFs) {
+    super(store)
   }
 
   public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
-    this.asyncLock(() => {
       this.store.upload(convertPath(key), data).then((result: any) => {
         cb(null, result);
       }).catch((reason: Error) => {
         cb(null, undefined);
       });
-    })
   }
 
   public del(key: string, cb: BFSOneArgCallback): void {
-    this.asyncLock(() => {
-      this.store.deleteFile(convertPath(key))
-      .then((result: any) => {
-        cb()
-      })
-      .catch((reason: any) => {
-        cb()
-      })
+    this.store.deleteFile(convertPath(key))
+    .then((result: any) => {
+      cb()
+    })
+    .catch((reason: any) => {
+      cb()
     })
   }
 }
 
 export class MongoDBStore implements AsyncKeyValueStore {
-  protected asyncKey = uuidv4().toString()
   constructor(private storeName: string, private db: GridFs) {}
 
   public name(): string {
@@ -157,9 +126,9 @@ export class MongoDBStore implements AsyncKeyValueStore {
   public beginTransaction(type: 'readwrite'): AsyncKeyValueRWTransaction
   public beginTransaction(type: 'readonly' | 'readwrite' = 'readonly'): AsyncKeyValueROTransaction {
     if (type === 'readwrite') {
-      return new MongoDBRWTransaction(this.db, this.asyncKey)
+      return new MongoDBRWTransaction(this.db)
     } else if (type === 'readonly') {
-      return new MongoDBROTransaction(this.db, this.asyncKey)
+      return new MongoDBROTransaction(this.db)
     } else {
       throw new ApiError(ErrorCode.EINVAL, 'Invalid transaction type.')
     }
