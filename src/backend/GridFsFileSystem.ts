@@ -2,11 +2,6 @@ import { BFSOneArgCallback, BFSCallback, FileSystemOptions } from '../core/file_
 import { AsyncKeyValueROTransaction, AsyncKeyValueRWTransaction, AsyncKeyValueStore, AsyncKeyValueFileSystem } from '../generic/key_value_filesystem'
 import { ApiError, ErrorCode } from '../core/api_error'
 import { GridFs } from '@diginet/ds-mongodb'
-import { RpcClient, Transport } from '@diginet/ds-nodes'
-import { BrowserWebSocketTransport } from '@diginet/ds-nodes/lib/src/BrowserWebSocketMessages'
-import { NetworkNode } from '@diginet/ds-nodes/lib/src/Messages'
-import { v4 as uuidv4 } from 'uuid'
-//import * as AsyncLock from 'async-lock'
 import FS from '../core/FS';
 
 /*/**
@@ -142,18 +137,10 @@ export interface GridFSOptions {
   // The name of this file system. You can have multiple MongoDB file systems operating
   // at once, but each must have a different name.
   storeName?: string
-  // The server providing ds-nodes network access (defaults to web server host = window.location.host excluding any port)
-  host: string
-  // The port of ds-nodes server
-  port: number
-  // The name of the MongoDB database, defaults to browserFsDb.
-  databaseName: string
-  // The name of the ds-nodes network node providing the GridFs RPC service
-  networkNode: string
+  // Class to use for communicating with GridFs.
+  gridFs: () => GridFs
   // The size of the inode cache. Defaults to 100. A size of 0 or below disables caching.
   cacheSize?: number
-  // Transport class to use
-  transport: typeof Transport
   // Optional root FS for symlink access
   rootFS: () => FS
 }
@@ -169,35 +156,15 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
       optional: true,
       description: 'The name of this file system. You can have multiple GridFS file systems operating at once, but each must have a different name.'
     },
-    host: {
-      type: 'string',
-      optional: true,
-      description: 'The server providing ds-nodes WebSocket access.'
-    },
-    port: {
-      type: 'number',
+    gridFs: {
+      type: 'function',
       optional: false,
-      description: 'The port for the server providing ds-nodes WebSocket access.'
-    },
-    networkNode: {
-      type: 'string',
-      optional: true,
-      description: 'The ds-nodes server providing the GridFs RPC service.'
-    },
-    databaseName: {
-      type: 'string',
-      optional: true,
-      description: 'The MongoDB database name, defaults to browserFsDb.'
+      description: 'Class to use for communicating with GridFs.'
     },
     cacheSize: {
       type: 'number',
       optional: true,
       description: 'The size of the inode cache. Defaults to 100. A size of 0 or below disables caching.'
-    },
-    transport: {
-      type: 'function',
-      optional: true,
-      description: 'Transport type to use.'
     },
     rootFS: {
       type: 'function',
@@ -209,27 +176,17 @@ export class GridFsFileSystem extends AsyncKeyValueFileSystem {
   /**
    * Constructs an MongoDB file system with the given options.
    */
-  public static async Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
+  public static Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
     try {
       const gfs = new GridFsFileSystem(typeof opts.cacheSize === 'number' ? opts.cacheSize : 100, opts.rootFS)
-      const T = opts.transport || BrowserWebSocketTransport
-      const networkNode = new NetworkNode(uuidv4(), new T((opts.host ? opts.host : window.location.host).split(':')[0] + ':' + opts.port.toString(), false))
-      await networkNode.open()
-      const db = new RpcClient<GridFs>(networkNode, 'GridFs').api(opts.networkNode)
-      //const value = await db.open(opts.databaseName ? opts.databaseName : "browserFsDb");
-      const value = await db.open(opts.databaseName ? opts.databaseName : 'browserFsDb')
-      if (value) {
-        const store = new MongoDBStore(opts.storeName ? opts.storeName : 'browserfs', db)
-        gfs.init(store, (e?) => {
-          if (e) {
-            cb(e)
-          } else {
-            cb(null, gfs)
-          }
-        })
-      } else {
-        cb(new ApiError(ErrorCode.EINVAL, 'Failed to open database'))
-      }
+      const store = new MongoDBStore(opts.storeName ? opts.storeName : 'browserfs', opts.gridFs())
+      gfs.init(store, (e?) => {
+        if (e) {
+          cb(e)
+        } else {
+          cb(null, gfs)
+        }
+      })
     } catch (reason) {
       cb(new ApiError(ErrorCode.EINVAL, 'Failed to open database' + reason))
     }
