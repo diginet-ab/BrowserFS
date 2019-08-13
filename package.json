@@ -1,6 +1,6 @@
 {
   "name": "@diginet/ds-fs",
-  "version": "2.0.49",
+  "version": "2.0.50",
   "description": "A filesystem in your browser (or remote fs for NodeJS)!",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
