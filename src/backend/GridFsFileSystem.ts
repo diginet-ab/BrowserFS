@@ -1,239 +1,255 @@
-import { BFSOneArgCallback, BFSCallback, FileSystemOptions } from '../core/file_system'
-import { AsyncKeyValueROTransaction, AsyncKeyValueRWTransaction, AsyncKeyValueStore, AsyncKeyValueFileSystem } from '../generic/key_value_filesystem'
+import PreloadFile from '../generic/preload_file'
+import { BaseFileSystem, FileSystem, BFSOneArgCallback, BFSCallback, FileSystemOptions } from '../core/file_system'
+import { FileFlag } from '../core/file_flag'
+import { default as Stats, FileType } from '../core/node_fs_stats'
 import { ApiError, ErrorCode } from '../core/api_error'
+import { File } from '../core/file'
+import setImmediate from '../generic/setImmediate'
 import { GridFs } from '@diginet/ds-mongodb'
-import FS from '../core/FS';
 
-/*/**
- * Converts a Exception or a Error from an MongoDB event into a
- * standardized BrowserFS API error.
- * @hidden
- */
-
-/*
-function convertError(e: {name: string}, message: string = e.toString()): ApiError {
- switch (e.name) {
-   case "NotFoundError":
-     return new ApiError(ErrorCode.ENOENT, message);
-   case "QuotaExceededError":
-     return new ApiError(ErrorCode.ENOSPC, message);
-   default:
-     // The rest do not seem to map cleanly to standard error codes.
-     return new ApiError(ErrorCode.EIO, message);
- }
-}
-*/
-
-function convertPath(inData: string): string {
-  return inData.replace('/', '!')
-}
 /**
- * Produces a new onerror handler for MongoDB. Our errors are always fatal, so we
- * handle them generically: Call the user-supplied callback with a translated
- * version of the error, and let the error bubble up.
- * @hidden
+ * Dropbox paths do not begin with a /, they just begin with a folder at the root node.
+ * Here, we strip the `/`.
+ * @param p An absolute path
  */
-/*
-function onErrorHandler(cb: (e: ApiError) => void, code: ErrorCode = ErrorCode.EIO, message: string | null = null): (e?: any) => void {
-  return function(e?: any): void {
-    // Prevent the error from canceling the transaction.
-    e.preventDefault();
-    cb(new ApiError(code, message !== null ? message : undefined));
-  };
+function FixPath(p: string): string {
+  if (p === '/') {
+    return ''
+  } else {
+    return p
+  }
 }
-*/
-/**
- * @hidden
- */
-export class MongoDBROTransaction implements AsyncKeyValueROTransaction {
-  protected done?: () => void
-  constructor(public store: GridFs) {
+
+type GridFsError = {
+  code: 'ENOENT' | 'EIO' | 'EEXIST' | 'EISDIR' | 'ENOTDIR'
+  path: string
+}
+
+function getApiError(e: GridFsError): ApiError {
+  if (!e) {
+    return new ApiError(ErrorCode.EIO)
+  }
+  switch (e.code) {
+    case 'ENOENT':
+      return ApiError.ENOENT(e.path)
+    case 'EISDIR':
+      return ApiError.EISDIR(e.path)
+    case 'EEXIST':
+      return ApiError.EEXIST(e.path)
+    case 'ENOTDIR':
+      return ApiError.ENOTDIR(e.path)
+    default:
+      return new ApiError(ErrorCode.EIO)
+  }
+}
+
+export class GridFsFile extends PreloadFile<GridFsFileSystem> implements File {
+  constructor(_fs: GridFsFileSystem, _path: string, _flag: FileFlag, _stat: Stats, contents?: Buffer) {
+    super(_fs, _path, _flag, _stat, contents)
   }
 
-  public get(key: string, cb: BFSCallback<Buffer>): void {
-    this.store.fileExists(convertPath(key)).then((value) => {
-      if (value) {
-        this.store.download(convertPath(key)).then((value2) => {
-          cb(null, value2);
-        }).catch((reason: Error) => {
-          cb(null, undefined);
-        });
-      } else {
-        cb(null, undefined);
-      }
-    }).catch((reason: Error) => {
-      cb(null, undefined);
-    });
+  public sync(cb: BFSOneArgCallback): void {
+    this._fs._syncFile(this.getPath(), this.getBuffer(), cb)
   }
 
-  public abort(cb: BFSOneArgCallback): void {
-    cb(null)
-  }
-
-  public commit(cb: BFSOneArgCallback): void {
-    // Return to the event loop to commit the transaction.
-    setTimeout(() => {
-      cb()
-    }, 0)
+  public close(cb: BFSOneArgCallback): void {
+    this.sync(cb)
   }
 }
 
 /**
- * @hidden
+ * Options for the GridFs file system.
  */
-export class MongoDBRWTransaction extends MongoDBROTransaction implements AsyncKeyValueRWTransaction, AsyncKeyValueROTransaction {
-  constructor(store: GridFs) {
-    super(store)
-  }
-
-  public put(key: string, data: Buffer, overwrite: boolean, cb: BFSCallback<boolean>): void {
-      this.store.upload(convertPath(key), data).then((result: any) => {
-        cb(null, result);
-      }).catch((reason: Error) => {
-        cb(null, undefined);
-      });
-  }
-
-  public del(key: string, cb: BFSOneArgCallback): void {
-    this.store.deleteFile(convertPath(key))
-    .then((result: any) => {
-      cb()
-    })
-    .catch((reason: any) => {
-      cb()
-    })
-  }
-}
-
-export class MongoDBStore implements AsyncKeyValueStore {
-  constructor(private storeName: string, private db: GridFs) {}
-
-  public name(): string {
-    return GridFsFileSystem.Name + ' - ' + this.storeName
-  }
-
-  public clear(cb: BFSOneArgCallback): void {
-    // Use setTimeout to commit transaction.
-    setTimeout(cb, 0)
-  }
-
-  public beginTransaction(type: 'readonly'): AsyncKeyValueROTransaction
-  public beginTransaction(type: 'readwrite'): AsyncKeyValueRWTransaction
-  public beginTransaction(type: 'readonly' | 'readwrite' = 'readonly'): AsyncKeyValueROTransaction {
-    if (type === 'readwrite') {
-      return new MongoDBRWTransaction(this.db)
-    } else if (type === 'readonly') {
-      return new MongoDBROTransaction(this.db)
-    } else {
-      throw new ApiError(ErrorCode.EINVAL, 'Invalid transaction type.')
-    }
-  }
+export interface GridFsFileSystemOptions {
+  // Client to use for communicating with GridFs.
+  client: () => GridFs
 }
 
 /**
- * Configuration options for the MongoDB file system.
+ * A read/write file system backed by Dropbox cloud storage.
+ *
+ * Uses the Dropbox V2 API, and the 2.x JS SDK.
  */
-export interface GridFSOptions {
-  // The name of this file system. You can have multiple MongoDB file systems operating
-  // at once, but each must have a different name.
-  storeName?: string
-  // Class to use for communicating with GridFs.
-  gridFs: () => GridFs
-  // The size of the inode cache. Defaults to 100. A size of 0 or below disables caching.
-  cacheSize?: number
-  // Optional root FS for symlink access
-  rootFS: () => FS
-}
+export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
+  public static readonly Name = 'GridFsFileSystem'
 
-/**
- * A file system that uses the MongoDB key value file system.
- */
-export class GridFsFileSystem extends AsyncKeyValueFileSystem {
-  public static readonly Name = 'GridFS'
   public static readonly Options: FileSystemOptions = {
-    storeName: {
-      type: 'string',
-      optional: true,
-      description: 'The name of this file system. You can have multiple GridFS file systems operating at once, but each must have a different name.'
-    },
-    gridFs: {
+    client: {
       type: 'function',
       optional: false,
-      description: 'Class to use for communicating with GridFs.'
-    },
-    cacheSize: {
-      type: 'number',
-      optional: true,
-      description: 'The size of the inode cache. Defaults to 100. A size of 0 or below disables caching.'
-    },
-    rootFS: {
-      type: 'function',
-      optional: true,
-      description: 'Optional function returning root FS for resolving symlinks.'
-    },
+      description: 'Client to use for communicating with GridFs.'
+    }
   }
 
   /**
-   * Constructs an MongoDB file system with the given options.
+   * Creates a new GridFsFileSystem instance with the given options.
    */
-  public static Create(opts: GridFSOptions, cb: BFSCallback<GridFsFileSystem>) {
-    try {
-      const gfs = new GridFsFileSystem(typeof opts.cacheSize === 'number' ? opts.cacheSize : 100, opts.rootFS)
-      const store = new MongoDBStore(opts.storeName ? opts.storeName : 'browserfs', opts.gridFs())
-      gfs.init(store, (e?) => {
-        if (e) {
-          cb(e)
-        } else {
-          cb(null, gfs)
-        }
-      })
-    } catch (reason) {
-      cb(new ApiError(ErrorCode.EINVAL, 'Failed to open database' + reason))
-    }
+  public static Create(opts: GridFsFileSystemOptions, cb: BFSCallback<GridFsFileSystem>): void {
+    cb(null, new GridFsFileSystem(opts.client()))
   }
 
   public static isAvailable(): boolean {
     return true
   }
 
-  public supportsLinks(): boolean {
-    return true;
+  private _client: GridFs
+
+  private constructor(client: GridFs) {
+    super()
+    this._client = client
   }
+
+  public getName(): string {
+    return GridFsFileSystem.Name
+  }
+
+  public isReadOnly(): boolean {
+    return false
+  }
+
+  // We don't support symlinks, properties or sync operations (yet..)
 
   public supportsSymlinks(): boolean {
-    return true;
+    return false
   }
 
-  public async linkSync(srcpath: string, dstpath: string) {
-    await new Promise<void>((resolve, reject) => {
-      this.link(srcpath, dstpath, (e) => {
-        if (e)
-          reject(e)
-        else
-          resolve()
+  public supportsProps(): boolean {
+    return false
+  }
+
+  public supportsSynch(): boolean {
+    return false
+  }
+
+  /**
+   * Deletes *everything* in the file system. Mainly intended for unit testing!
+   * @param mainCb Called when operation completes.
+   */
+  public empty(mainCb: BFSOneArgCallback): void {
+    mainCb(new ApiError(ErrorCode.ENOTSUP))
+  }
+
+  public rename(oldPath: string, newPath: string, cb: BFSOneArgCallback): void {
+    this._client
+      .rename(FixPath(oldPath), FixPath(newPath))
+      .then(() => cb())
+      .catch(function(e: GridFsError) {
+        cb(getApiError(e))
       })
-    })
   }
 
-  public async symlinkSync(srcpath: string, dstpath: string, type: string) {
-    await new Promise<void>((resolve, reject) => {
-      this.symlink(srcpath, dstpath, type, (e) => {
-        if (e)
-          reject(e)
-        else
-          resolve()
+  public stat(path: string, isLstat: boolean, cb: BFSCallback<Stats>): void {
+    if (path === '/') {
+      // GridFs doesn't support querying the root directory.
+      setImmediate(function() {
+        cb(null, new Stats(FileType.DIRECTORY, 4096))
       })
-    })
+      return
+    }
+    this._client
+      .getMetaData(FixPath(path))
+      .then(metadata => {
+        if (metadata.isFolder) {
+          cb(null, new Stats(FileType.DIRECTORY, 4096))
+        } else {
+          cb(null, new Stats(FileType.FILE, metadata.byteSize!))
+        }
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
   }
 
-  public readlink(p: string, cb: BFSCallback<string>): void {
+  public openFile(path: string, flags: FileFlag, cb: BFSCallback<File>): void {
+    this._client
+      .download(FixPath(path))
+      .then(data => {
+        cb(null, new GridFsFile(this, path, flags, new Stats(FileType.FILE, data.byteLength), data))
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
   }
 
-  public readlinkSync(p: string): string {
-    return '';
+  public createFile(p: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
+    const fileData = Buffer.alloc(0)
+    this._client
+      .upload(FixPath(p), fileData)
+      .then(() => {
+        cb(null, new GridFsFile(this, p, flags, new Stats(FileType.FILE, 0), fileData))
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
   }
 
-  constructor(cacheSize: number, rootFS: () => FS) {
-    super(cacheSize, rootFS)
+  /**
+   * Delete a file
+   */
+  public unlink(p: string, cb: BFSOneArgCallback): void {
+    this._client
+      .deleteFile(FixPath(p))
+      .then(() => {
+        cb()
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
+  }
+
+  /**
+   * Delete a directory
+   */
+  public rmdir(p: string, cb: BFSOneArgCallback): void {
+    this._client
+      .rmdir(FixPath(p))
+      .then(() => {
+        cb()
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
+  }
+
+  /**
+   * Create a directory
+   */
+  public mkdir(p: string, mode: number, cb: BFSOneArgCallback): void {
+    this._client
+      .mkdir(FixPath(p))
+      .then(() => {
+        cb()
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
+  }
+
+  /**
+   * Get the names of the files in a directory
+   */
+  public readdir(path: string, cb: BFSCallback<string[]>): void {
+    this._client
+      .readdir(FixPath(path))
+      .then(res => {
+        cb(null, res)
+      })
+      .catch((e: GridFsError) => {
+        cb(getApiError(e))
+      })
+  }
+
+  /**
+   * (Internal) Syncs file to GridFs.
+   */
+  public _syncFile(p: string, d: Buffer, cb: BFSOneArgCallback): void {
+    this._client
+      .upload(FixPath(p), d)
+      .then(() => {
+        cb()
+      })
+      .catch((e: 'EIO') => {
+        cb(new ApiError(ErrorCode.EIO))
+      })
   }
 }

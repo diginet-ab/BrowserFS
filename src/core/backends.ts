@@ -15,7 +15,7 @@ import WorkerFS from '../backend/WorkerFS';
 import HTTPRequest from '../backend/HTTPRequest';
 import ZipFS from '../backend/ZipFS';
 import IsoFS from '../backend/IsoFS';
-import { GridFsFileSystem } from '../backend/GridFsFileSystem';
+import { GridFsFileSystem } from '../backend/GridFsFileSystem'
 // import { NodeFsFileSystem } from '../backend/NodeFsFileSystem';
 
 // Monkey-patch `Create` functions to check options before file system initialization.
