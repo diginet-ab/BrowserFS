@@ -21,13 +21,17 @@ function FixPath(p: string): string {
 }
 
 type GridFsError = {
-  code: 'ENOENT' | 'EIO' | 'EEXIST' | 'EISDIR' | 'ENOTDIR'
+  code: 'ENOENT' | 'EIO' | 'EEXIST' | 'EISDIR' | 'ENOTDIR' | 'ENOTEMPTY'
   path: string
 }
 
 function getApiError(e: GridFsError): ApiError {
   if (!e) {
     return new ApiError(ErrorCode.EIO)
+  }
+  if (typeof e.code === (-32603 as any)) {
+    // This was a remote call. Noice json rpc placed the actual error inside e.data
+    e = (e as any).data
   }
   switch (e.code) {
     case 'ENOENT':
@@ -38,6 +42,8 @@ function getApiError(e: GridFsError): ApiError {
       return ApiError.EEXIST(e.path)
     case 'ENOTDIR':
       return ApiError.ENOTDIR(e.path)
+    case 'ENOTEMPTY':
+      return ApiError.ENOTEMPTY(e.path)
     default:
       return new ApiError(ErrorCode.EIO)
   }
