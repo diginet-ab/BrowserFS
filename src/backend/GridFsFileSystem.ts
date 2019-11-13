@@ -29,10 +29,6 @@ function getApiError(e: GridFsError): ApiError {
     if (!e) {
         return new ApiError(ErrorCode.EIO)
     }
-    if (typeof e.code === (-32603 as any)) {
-        // This was a remote call. Noice json rpc placed the actual error inside e.data
-        e = (e as any).data
-    }
     switch (e.code) {
         case 'ENOENT':
             return ApiError.ENOENT(e.path)
