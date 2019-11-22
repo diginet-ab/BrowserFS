@@ -1,9 +1,15 @@
-import PreloadFile from '../generic/preload_file'
-import { BaseFileSystem, FileSystem, BFSOneArgCallback, BFSCallback, FileSystemOptions } from '../core/file_system'
-import { FileFlag } from '../core/file_flag'
+import {
+    BaseFileSystem,
+    FileSystem,
+    BFSOneArgCallback,
+    BFSCallback,
+    FileSystemOptions,
+    BFSThreeArgCallback
+} from '../core/file_system'
+import { FileFlag, ActionType } from '../core/file_flag'
 import { default as Stats, FileType } from '../core/node_fs_stats'
 import { ApiError, ErrorCode } from '../core/api_error'
-import { File } from '../core/file'
+import { File, BaseFile } from '../core/file'
 import setImmediate from '../generic/setImmediate'
 import { IDsFs } from '@diginet/ds-fs-backend'
 import { DsFsException } from '@diginet/ds-fs-backend/src/IDsFs'
@@ -41,17 +47,110 @@ function getApiError(e: DsFsException): ApiError {
     }
 }
 
-export class DsFsFile extends PreloadFile<DsFsFileSystem> implements File {
-    constructor(_fs: DsFsFileSystem, _path: string, _flag: FileFlag, _stat: Stats, contents?: Buffer) {
-        super(_fs, _path, _flag, _stat, contents)
+class DsFsFile extends BaseFile implements File {
+    constructor(private client: IDsFs, private fh: string, private mode?: number) {
+        super()
     }
-
-    public sync(cb: BFSOneArgCallback): void {
-        this._fs._syncFile(this.getPath(), this.getBuffer(), cb)
+    public getPos(): number | undefined {
+        return undefined
     }
-
     public close(cb: BFSOneArgCallback): void {
-        this.sync(cb)
+        //NOP
+        cb(null)
+    }
+    public closeSync() {
+        // NOP
+    }
+    public stat(cb: BFSCallback<Stats>) {
+        this.client.fgetattr(this.fh).then(
+            stats => {
+                cb(null, new Stats(FileType.FILE, stats.size, this.mode, stats.atime, stats.mtime, stats.ctime, stats.birthtime))
+            },
+            (e: DsFsException) => {
+                cb(getApiError(e))
+            }
+        )
+    }
+    public statSync(): Stats {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public truncate(len: number, cb: BFSOneArgCallback): void {
+        this.client.ftruncate(this.fh, len).then(
+            () => {
+                cb()
+            },
+            (e: DsFsException) => {
+                cb(getApiError(e))
+            }
+        )
+    }
+    public truncateSync(): void {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public write(
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number,
+        cb: BFSThreeArgCallback<number, Buffer>
+    ): void {
+        this.client.write(this.fh, buffer.slice(offset, length), position).then(
+            written => {
+                cb(null, written, buffer)
+            },
+            (e: DsFsException) => {
+                cb(getApiError(e))
+            }
+        )
+    }
+    public writeSync(): number {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public read(buffer: Buffer, offset: number, length: number, position: number, cb: BFSThreeArgCallback<number, Buffer>): void {
+        this.client.read(this.fh, position, length).then(
+            data => {
+                data.copy(buffer, offset, 0, length)
+                cb(null, data.length, buffer)
+            },
+            (e: DsFsException) => {
+                cb(getApiError(e))
+            }
+        )
+    }
+    public readSync(): number {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public sync(cb: BFSOneArgCallback): void {
+        // NOP.
+        cb()
+    }
+    public syncSync(): void {
+        // NOP.
+    }
+    public chown(uid: number, gid: number, cb: BFSOneArgCallback): void {
+        cb(new ApiError(ErrorCode.ENOTSUP))
+    }
+    public chownSync(uid: number, gid: number): void {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public chmod(mode: number, cb: BFSOneArgCallback): void {
+        cb(new ApiError(ErrorCode.ENOTSUP))
+    }
+    public chmodSync(mode: number): void {
+        throw new ApiError(ErrorCode.ENOTSUP)
+    }
+    public utimes(atime: Date, mtime: Date, cb: BFSOneArgCallback): void {
+        this.client.futimes(this.fh, atime.getTime(), mtime.getTime()).then(
+            () => {
+                cb()
+            },
+            (e: DsFsException) => {
+                cb(getApiError(e))
+            }
+        )
+    }
+    public utimesSync(atime: Date, mtime: Date): void {
+        throw new ApiError(ErrorCode.ENOTSUP)
     }
 }
 
@@ -142,36 +241,23 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
         if (path === '/') {
             // DsFs will always return this when querying the root directory.
             setImmediate(() => {
-                cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode, Date.now(), Date.now(), Date.now(), Date.now()))
+                cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode, 0, 0, 0, 0))
             })
             return
         }
         this._backend
-            .stat(FixPath(path))
+            .getattr(FixPath(path))
             .then(metadata => {
-                if (metadata.isFolder) {
-                    cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode))
-                } else {
-                    cb(null, new Stats(FileType.FILE, metadata.byteSize!, this._mode))
-                }
-            })
-            .catch((e: DsFsException) => {
-                cb(getApiError(e))
-            })
-    }
-
-    public openFile(path: string, flags: FileFlag, cb: BFSCallback<File>): void {
-        let _path = FixPath(path)
-        Promise.all([this._backend.readFile(_path), this._backend.stat(_path)])
-            .then(([data, stat]) => {
                 cb(
                     null,
-                    new DsFsFile(
-                        this,
-                        path,
-                        flags,
-                        new Stats(FileType.FILE, data.byteLength, this._mode, stat.atime, stat.mtime, stat.ctime, stat.birthtime),
-                        data
+                    new Stats(
+                        metadata.isFolder ? FileType.DIRECTORY : FileType.FILE,
+                        metadata.size,
+                        this._mode,
+                        metadata.atime,
+                        metadata.mtime,
+                        metadata.ctime,
+                        metadata.birthtime
                     )
                 )
             })
@@ -180,12 +266,67 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             })
     }
 
-    public createFile(p: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
-        const fileData = Buffer.alloc(0)
+    public open(path: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
+        const exists = (fh: string) => {
+            switch (flags.pathExistsAction()) {
+                case ActionType.THROW_EXCEPTION: {
+                    cb(getApiError({ code: 'EEXIST', path: path }))
+                    break
+                }
+                case ActionType.TRUNCATE_FILE: {
+                    this._backend.ftruncate(fh, 0).then(() => {
+                        cb(null, new DsFsFile(this._backend, fh, this._mode))
+                    }, (err) => {
+                        if (err.code === 'ENOENT') {
+                            // The file was removed.
+                            notExists()
+                        }
+                        else {
+                            cb(getApiError(err.code))
+                        }
+                    })
+                    break
+                }
+                default: {
+                    cb(null, new DsFsFile(this._backend, fh, this._mode))
+                }
+            }
+        }
+        const notExists = () => {
+            if (flags.pathNotExistsAction() === ActionType.CREATE_FILE) {
+                this._backend.create(path).then(
+                    fh => {
+                        cb(null, new DsFsFile(this._backend, fh, this._mode))
+                    },
+                    err2 => {
+                        cb(getApiError(err2))
+                    }
+                )
+            } else {
+                cb(getApiError({ code: 'ENOENT', path: path }))
+            }
+        }
+        this._backend.lookup(path).then(
+            fh => {
+                // The file exists
+                exists(fh)
+            },
+            (err: DsFsException) => {
+                if (err.code === 'ENOENT') {
+                    notExists()
+                } else {
+                    cb(getApiError(err))
+                }
+            }
+        )
+    }
+
+    public createFile(path: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
+        let _path = FixPath(path)
         this._backend
-            .writeFile(FixPath(p), fileData)
-            .then(() => {
-                cb(null, new DsFsFile(this, p, flags, new Stats(FileType.FILE, 0, this._mode), fileData))
+            .create(_path)
+            .then(fh => {
+                cb(null, new DsFsFile(this._backend, fh, this._mode))
             })
             .catch((e: DsFsException) => {
                 cb(getApiError(e))
@@ -195,9 +336,9 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
     /**
      * Delete a file
      */
-    public unlink(p: string, cb: BFSOneArgCallback): void {
+    public unlink(path: string, cb: BFSOneArgCallback): void {
         this._backend
-            .deleteFile(FixPath(p))
+            .remove(FixPath(path))
             .then(() => {
                 cb()
             })
@@ -209,9 +350,9 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
     /**
      * Delete a directory
      */
-    public rmdir(p: string, cb: BFSOneArgCallback): void {
+    public rmdir(path: string, cb: BFSOneArgCallback): void {
         this._backend
-            .rmdir(FixPath(p))
+            .rmdir(FixPath(path))
             .then(() => {
                 cb()
             })
@@ -223,9 +364,9 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
     /**
      * Create a directory
      */
-    public mkdir(p: string, mode: number, cb: BFSOneArgCallback): void {
+    public mkdir(path: string, mode: number, cb: BFSOneArgCallback): void {
         this._backend
-            .mkdir(FixPath(p))
+            .mkdir(FixPath(path))
             .then(() => {
                 cb()
             })
@@ -242,20 +383,6 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             .readdir(FixPath(path))
             .then(res => {
                 cb(null, res)
-            })
-            .catch((e: DsFsException) => {
-                cb(getApiError(e))
-            })
-    }
-
-    /**
-     * (Internal) Syncs file to DsFs.
-     */
-    public _syncFile(p: string, d: Buffer, cb: BFSOneArgCallback): void {
-        this._backend
-            .writeFile(FixPath(p), d)
-            .then(() => {
-                cb()
             })
             .catch((e: DsFsException) => {
                 cb(getApiError(e))
