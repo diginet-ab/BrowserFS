@@ -5,7 +5,8 @@ import { default as Stats, FileType } from '../core/node_fs_stats'
 import { ApiError, ErrorCode } from '../core/api_error'
 import { File } from '../core/file'
 import setImmediate from '../generic/setImmediate'
-import { GridFs } from '@diginet/ds-mongodb'
+import { IDsFs } from '@diginet/ds-fs-backend'
+import { DsFsException } from '@diginet/ds-fs-backend/src/IDsFs'
 
 /**
  * Dropbox paths do not begin with a /, they just begin with a folder at the root node.
@@ -20,33 +21,28 @@ function FixPath(p: string): string {
     }
 }
 
-type GridFsError = {
-    code: 'ENOENT' | 'EIO' | 'EEXIST' | 'EISDIR' | 'ENOTDIR' | 'ENOTEMPTY'
-    path: string
-}
-
-function getApiError(e: GridFsError): ApiError {
+function getApiError(e: DsFsException): ApiError {
     if (!e) {
         return new ApiError(ErrorCode.EIO)
     }
     switch (e.code) {
         case 'ENOENT':
             return ApiError.ENOENT(e.path)
-        case 'EISDIR':
-            return ApiError.EISDIR(e.path)
-        case 'EEXIST':
-            return ApiError.EEXIST(e.path)
-        case 'ENOTDIR':
-            return ApiError.ENOTDIR(e.path)
         case 'ENOTEMPTY':
             return ApiError.ENOTEMPTY(e.path)
+        case 'EEXIST':
+            return ApiError.EEXIST(e.path)
+        case 'EISDIR':
+            return ApiError.EISDIR(e.path)
+        case 'ENOTDIR':
+            return ApiError.ENOTDIR(e.path)
         default:
             return new ApiError(ErrorCode.EIO)
     }
 }
 
-export class GridFsFile extends PreloadFile<GridFsFileSystem> implements File {
-    constructor(_fs: GridFsFileSystem, _path: string, _flag: FileFlag, _stat: Stats, contents?: Buffer) {
+export class DsFsFile extends PreloadFile<DsFsFileSystem> implements File {
+    constructor(_fs: DsFsFileSystem, _path: string, _flag: FileFlag, _stat: Stats, contents?: Buffer) {
         super(_fs, _path, _flag, _stat, contents)
     }
 
@@ -59,28 +55,22 @@ export class GridFsFile extends PreloadFile<GridFsFileSystem> implements File {
     }
 }
 
-/**
- * Options for the GridFs file system.
- */
-export interface GridFsFileSystemOptions {
-    // Client to use for communicating with GridFs.
-    client: () => GridFs
+export interface DsFsFileSystemOptions {
+    backend: () => IDsFs
     mode?: number
 }
 
 /**
- * A read/write file system backed by Dropbox cloud storage.
- *
- * Uses the Dropbox V2 API, and the 2.x JS SDK.
+ * Communicates with the provided DsFs backend.
  */
-export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
-    public static readonly Name = 'GridFsFileSystem'
+export default class DsFsFileSystem extends BaseFileSystem implements FileSystem {
+    public static readonly Name = 'DsFsFileSystem'
 
     public static readonly Options: FileSystemOptions = {
-        client: {
+        backend: {
             type: 'function',
             optional: false,
-            description: 'Client to use for communicating with GridFs.'
+            description: 'Backend to use for communicating with DsFs.'
         },
         mode: {
             type: 'number',
@@ -90,27 +80,27 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
     }
 
     /**
-     * Creates a new GridFsFileSystem instance with the given options.
+     * Creates a new DsFsFileSystem instance with the given options.
      */
-    public static Create(opts: GridFsFileSystemOptions, cb: BFSCallback<GridFsFileSystem>): void {
-        cb(null, new GridFsFileSystem(opts.client()))
+    public static Create(opts: DsFsFileSystemOptions, cb: BFSCallback<DsFsFileSystem>): void {
+        cb(null, new DsFsFileSystem(opts.backend()))
     }
 
     public static isAvailable(): boolean {
         return true
     }
 
-    private _client: GridFs
+    private _backend: IDsFs
     private _mode?: number
 
-    private constructor(client: GridFs, mode?: number) {
+    private constructor(backend: IDsFs, mode?: number) {
         super()
-        this._client = client
+        this._backend = backend
         this._mode = typeof mode === 'number' ? mode : parseInt('777', 8)
     }
 
     public getName(): string {
-        return GridFsFileSystem.Name
+        return DsFsFileSystem.Name
     }
 
     public isReadOnly(): boolean {
@@ -140,24 +130,24 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
     }
 
     public rename(oldPath: string, newPath: string, cb: BFSOneArgCallback): void {
-        this._client
+        this._backend
             .rename(FixPath(oldPath), FixPath(newPath))
             .then(() => cb())
-            .catch(function(e: GridFsError) {
+            .catch(function(e: DsFsException) {
                 cb(getApiError(e))
             })
     }
 
     public stat(path: string, isLstat: boolean, cb: BFSCallback<Stats>): void {
         if (path === '/') {
-            // GridFs doesn't support querying the root directory.
+            // DsFs will always return this when querying the root directory.
             setImmediate(() => {
-                cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode))
+                cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode, Date.now(), Date.now(), Date.now(), Date.now()))
             })
             return
         }
-        this._client
-            .getMetaData(FixPath(path))
+        this._backend
+            .stat(FixPath(path))
             .then(metadata => {
                 if (metadata.isFolder) {
                     cb(null, new Stats(FileType.DIRECTORY, 4096, this._mode))
@@ -165,30 +155,39 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
                     cb(null, new Stats(FileType.FILE, metadata.byteSize!, this._mode))
                 }
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
 
     public openFile(path: string, flags: FileFlag, cb: BFSCallback<File>): void {
-        this._client
-            .download(FixPath(path))
-            .then(data => {
-                cb(null, new GridFsFile(this, path, flags, new Stats(FileType.FILE, data.byteLength, this._mode), data))
+        let _path = FixPath(path)
+        Promise.all([this._backend.readFile(_path), this._backend.stat(_path)])
+            .then(([data, stat]) => {
+                cb(
+                    null,
+                    new DsFsFile(
+                        this,
+                        path,
+                        flags,
+                        new Stats(FileType.FILE, data.byteLength, this._mode, stat.atime, stat.mtime, stat.ctime, stat.birthtime),
+                        data
+                    )
+                )
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
 
     public createFile(p: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
         const fileData = Buffer.alloc(0)
-        this._client
-            .upload(FixPath(p), fileData)
+        this._backend
+            .writeFile(FixPath(p), fileData)
             .then(() => {
-                cb(null, new GridFsFile(this, p, flags, new Stats(FileType.FILE, 0, this._mode), fileData))
+                cb(null, new DsFsFile(this, p, flags, new Stats(FileType.FILE, 0, this._mode), fileData))
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
@@ -197,12 +196,12 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
      * Delete a file
      */
     public unlink(p: string, cb: BFSOneArgCallback): void {
-        this._client
+        this._backend
             .deleteFile(FixPath(p))
             .then(() => {
                 cb()
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
@@ -211,12 +210,12 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
      * Delete a directory
      */
     public rmdir(p: string, cb: BFSOneArgCallback): void {
-        this._client
+        this._backend
             .rmdir(FixPath(p))
             .then(() => {
                 cb()
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
@@ -225,12 +224,12 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
      * Create a directory
      */
     public mkdir(p: string, mode: number, cb: BFSOneArgCallback): void {
-        this._client
+        this._backend
             .mkdir(FixPath(p))
             .then(() => {
                 cb()
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
@@ -239,27 +238,27 @@ export class GridFsFileSystem extends BaseFileSystem implements FileSystem {
      * Get the names of the files in a directory
      */
     public readdir(path: string, cb: BFSCallback<string[]>): void {
-        this._client
+        this._backend
             .readdir(FixPath(path))
             .then(res => {
                 cb(null, res)
             })
-            .catch((e: GridFsError) => {
+            .catch((e: DsFsException) => {
                 cb(getApiError(e))
             })
     }
 
     /**
-     * (Internal) Syncs file to GridFs.
+     * (Internal) Syncs file to DsFs.
      */
     public _syncFile(p: string, d: Buffer, cb: BFSOneArgCallback): void {
-        this._client
-            .upload(FixPath(p), d)
+        this._backend
+            .writeFile(FixPath(p), d)
             .then(() => {
                 cb()
             })
-            .catch((e: 'EIO') => {
-                cb(new ApiError(ErrorCode.EIO))
+            .catch((e: DsFsException) => {
+                cb(getApiError(e))
             })
     }
 }
