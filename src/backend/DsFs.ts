@@ -27,21 +27,18 @@ function FixPath(p: string): string {
     }
 }
 
-function getApiError(e: DsFsException): ApiError {
-    if (!e) {
-        return new ApiError(ErrorCode.EIO)
-    }
-    switch (e.code) {
-        case 'ENOENT':
-            return ApiError.ENOENT(e.path)
+function getApiError(e: DsFsException, path: string): ApiError {
+    switch (e) {
         case 'ENOTEMPTY':
-            return ApiError.ENOTEMPTY(e.path)
+            return ApiError.ENOTEMPTY(path)
         case 'EEXIST':
-            return ApiError.EEXIST(e.path)
+            return ApiError.EEXIST(path)
         case 'EISDIR':
-            return ApiError.EISDIR(e.path)
+            return ApiError.EISDIR(path)
         case 'ENOTDIR':
-            return ApiError.ENOTDIR(e.path)
+            return ApiError.ENOTDIR(path)
+        case 'ENOENT':
+            return ApiError.ENOENT(path)
         default:
             return new ApiError(ErrorCode.EIO)
     }
@@ -66,8 +63,8 @@ class DsFsFile extends BaseFile implements File {
             stats => {
                 cb(null, new Stats(FileType.FILE, stats.size, this.mode, stats.atime, stats.mtime, stats.ctime, stats.birthtime))
             },
-            (e: DsFsException) => {
-                cb(getApiError(e))
+            () => {
+                cb(new ApiError(ErrorCode.EIO))
             }
         )
     }
@@ -79,8 +76,8 @@ class DsFsFile extends BaseFile implements File {
             () => {
                 cb()
             },
-            (e: DsFsException) => {
-                cb(getApiError(e))
+            () => {
+                cb(new ApiError(ErrorCode.EIO))
             }
         )
     }
@@ -98,8 +95,8 @@ class DsFsFile extends BaseFile implements File {
             written => {
                 cb(null, written, buffer)
             },
-            (e: DsFsException) => {
-                cb(getApiError(e))
+            () => {
+                cb(new ApiError(ErrorCode.EIO))
             }
         )
     }
@@ -112,8 +109,8 @@ class DsFsFile extends BaseFile implements File {
                 data.copy(buffer, offset, 0, length)
                 cb(null, data.length, buffer)
             },
-            (e: DsFsException) => {
-                cb(getApiError(e))
+            (e) => {
+                cb(new ApiError(ErrorCode.EIO))
             }
         )
     }
@@ -144,8 +141,8 @@ class DsFsFile extends BaseFile implements File {
             () => {
                 cb()
             },
-            (e: DsFsException) => {
-                cb(getApiError(e))
+            () => {
+                cb(new ApiError(ErrorCode.EIO))
             }
         )
     }
@@ -233,7 +230,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             .rename(FixPath(oldPath), FixPath(newPath))
             .then(() => cb())
             .catch(function(e: DsFsException) {
-                cb(getApiError(e))
+                cb(getApiError(e, oldPath))
             })
     }
 
@@ -262,7 +259,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 )
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 
@@ -270,19 +267,19 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
         const exists = (fh: string) => {
             switch (flags.pathExistsAction()) {
                 case ActionType.THROW_EXCEPTION: {
-                    cb(getApiError({ code: 'EEXIST', path: path }))
+                    cb(getApiError('EEXIST', path ))
                     break
                 }
                 case ActionType.TRUNCATE_FILE: {
                     this._backend.ftruncate(fh, 0).then(() => {
                         cb(null, new DsFsFile(this._backend, fh, this._mode))
-                    }, (err) => {
-                        if (err.code === 'ENOENT') {
+                    }, (err: DsFsException) => {
+                        if (err === 'ENOENT') {
                             // The file was removed.
                             notExists()
                         }
                         else {
-                            cb(getApiError(err.code))
+                            cb(getApiError(err, path))
                         }
                     })
                     break
@@ -299,11 +296,11 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                         cb(null, new DsFsFile(this._backend, fh, this._mode))
                     },
                     err2 => {
-                        cb(getApiError(err2))
+                        cb(getApiError(err2, path))
                     }
                 )
             } else {
-                cb(getApiError({ code: 'ENOENT', path: path }))
+                cb(getApiError('ENOENT', path ))
             }
         }
         this._backend.lookup(path).then(
@@ -312,10 +309,10 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 exists(fh)
             },
             (err: DsFsException) => {
-                if (err.code === 'ENOENT') {
+                if (err === 'ENOENT') {
                     notExists()
                 } else {
-                    cb(getApiError(err))
+                    cb(getApiError(err, path))
                 }
             }
         )
@@ -329,7 +326,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 cb(null, new DsFsFile(this._backend, fh, this._mode))
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 
@@ -343,7 +340,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 cb()
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 
@@ -357,7 +354,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 cb()
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 
@@ -371,7 +368,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 cb()
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 
@@ -385,7 +382,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
                 cb(null, res)
             })
             .catch((e: DsFsException) => {
-                cb(getApiError(e))
+                cb(getApiError(e, path))
             })
     }
 }
