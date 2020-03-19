@@ -14,19 +14,6 @@ import setImmediate from '../generic/setImmediate'
 import { IDsFs } from '@diginet/ds-fs-backend'
 import { DsFsException } from '@diginet/ds-fs-backend/src/IDsFs'
 
-/**
- * Dropbox paths do not begin with a /, they just begin with a folder at the root node.
- * Here, we strip the `/`.
- * @param p An absolute path
- */
-function FixPath(p: string): string {
-    if (p === '/') {
-        return ''
-    } else {
-        return p
-    }
-}
-
 function getApiError(e: DsFsException, path: string): ApiError {
     switch (e) {
         case 'ENOTEMPTY':
@@ -227,7 +214,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
 
     public rename(oldPath: string, newPath: string, cb: BFSOneArgCallback): void {
         this._backend
-            .rename(FixPath(oldPath), FixPath(newPath))
+            .rename(oldPath, newPath)
             .then(() => cb())
             .catch(function(e: DsFsException) {
                 cb(getApiError(e, oldPath))
@@ -243,7 +230,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             return
         }
         this._backend
-            .getattr(FixPath(path))
+            .getattr(path)
             .then(metadata => {
                 cb(
                     null,
@@ -319,9 +306,8 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
     }
 
     public createFile(path: string, flags: FileFlag, mode: number, cb: BFSCallback<File>): void {
-        let _path = FixPath(path)
         this._backend
-            .create(_path)
+            .create(path)
             .then(fh => {
                 cb(null, new DsFsFile(this._backend, fh, this._mode))
             })
@@ -335,7 +321,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
      */
     public unlink(path: string, cb: BFSOneArgCallback): void {
         this._backend
-            .remove(FixPath(path))
+            .remove(path)
             .then(() => {
                 cb()
             })
@@ -349,7 +335,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
      */
     public rmdir(path: string, cb: BFSOneArgCallback): void {
         this._backend
-            .rmdir(FixPath(path))
+            .rmdir(path)
             .then(() => {
                 cb()
             })
@@ -363,7 +349,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
      */
     public mkdir(path: string, mode: number, cb: BFSOneArgCallback): void {
         this._backend
-            .mkdir(FixPath(path))
+            .mkdir(path)
             .then(() => {
                 cb()
             })
@@ -377,7 +363,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
      */
     public readdir(path: string, cb: BFSCallback<string[]>): void {
         this._backend
-            .readdir(FixPath(path))
+            .readdir(path)
             .then(res => {
                 cb(null, res)
             })
