@@ -190,11 +190,7 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
         return false
     }
 
-    // We don't support symlinks, properties or sync operations (yet..)
-
-    public supportsSymlinks(): boolean {
-        return false
-    }
+    // We don't support properties or sync operations
 
     public supportsProps(): boolean {
         return false
@@ -370,5 +366,14 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             .catch((e: DsFsException) => {
                 cb(getApiError(e, path))
             })
+    }
+
+    public symlink(srcpath: string, dstpath: string, type: string, cb: BFSOneArgCallback) {
+        this._backend.symlink(srcpath, dstpath).then(() => {
+            cb(null)
+        })
+        .catch((e: DsFsException) => {
+            cb(getApiError(e, srcpath))
+        })
     }
 }

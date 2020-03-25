@@ -23,7 +23,7 @@
     "node": ">= 0.10"
   },
   "devDependencies": {
-    "@diginet/ds-fs-backend": "^1.2.23",
+    "@diginet/ds-fs-backend": "^1.2.29",
     "@types/archiver": "~2.1.2",
     "@types/async": "2.0.31",
     "@types/body-parser": "~1.17.0",
