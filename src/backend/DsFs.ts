@@ -14,11 +14,6 @@ import setImmediate from '../generic/setImmediate'
 
 type RecursiveFolder = { name: string; items?: RecursiveFolder[] }
 
-/**
- * Type definition for ds-fs backend.
- *
- * Each method may throw an exception, in which case it will always be of type DsFSException.
- */
 interface IDsFs {
     /**
      * Retrieve file attributes for a file.
@@ -103,6 +98,11 @@ interface IDsFs {
      * @throws ENOENT, ENOTDIR, EFAULT
      */
     rimraf(dirname: string): Promise<void>
+    /**
+     * Creates a new copy of a file in a new location.
+     * @throws ENOENT, ENOTDIR, EFAULT
+     */
+    copyFile(src: string, dest: string): Promise<void>
 }
 
 function getApiError(e: string, path: string): ApiError {
@@ -461,10 +461,18 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
 
     public symlink(srcpath: string, dstpath: string, type: string, cb: BFSOneArgCallback) {
         this._backend.symlink(srcpath, dstpath).then(() => {
-            cb(null)
+            cb()
         })
         .catch((e: string) => {
             cb(getApiError(e, srcpath))
         })
     }
+
+    public utimes(path: string, atime: Date, mtime: Date, cb: BFSOneArgCallback): void {
+        this._backend.utimes(path, atime.getTime(), mtime.getTime()).then(() => {
+            cb()
+        }, (e: string) => {
+            cb(getApiError(e, path));
+        })
+      }
 }
