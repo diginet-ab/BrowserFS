@@ -20,8 +20,9 @@ interface IDsFs {
      * @throws ENOENT, ENOTDIR, EFAULT
      */
     getattr(
-        filename: string
-    ): Promise<{ isFolder: boolean; size: number; atime: number; mtime: number; ctime: number; birthtime: number }>
+        filename: string,
+        isLstat?: boolean
+    ): Promise<{ type: 'directory' | 'file' | 'symlink'; size: number; atime: number; mtime: number; ctime: number; birthtime: number }>
     /**
      * Read from file.
      * @param filename Path to the file.
@@ -93,6 +94,11 @@ interface IDsFs {
      * @throws ENOENT, ENOTDIR, EFAULT
      */
     utimes(filename: string, atimeMs: number, mtimeMs: number): Promise<void>
+    /**
+     * Read value of a symbolic link
+     * @throws ENOENT, ENOTDIR, EFAULT
+     */
+    readlink(filename: string): Promise<string>
     /**
      * Remove a directory and all of its contents.
      * @throws ENOENT, ENOTDIR, EFAULT
@@ -317,12 +323,12 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             return
         }
         this._backend
-            .getattr(path)
+            .getattr(path, isLstat)
             .then(metadata => {
                 cb(
                     null,
                     new Stats(
-                        metadata.isFolder ? FileType.DIRECTORY : FileType.FILE,
+                        metadata.type === 'directory' ? FileType.DIRECTORY : metadata.type === 'file' ? FileType.FILE : FileType.SYMLINK,
                         metadata.size,
                         this._mode,
                         metadata.atime,
@@ -475,4 +481,12 @@ export default class DsFsFileSystem extends BaseFileSystem implements FileSystem
             cb(getApiError(e, path));
         })
       }
+    
+    public readlink(path: string, cb: BFSCallback<string>) {
+        this._backend.readlink(path).then((linkString) => {
+            cb(null, linkString)
+        }, (e) => {
+            cb(getApiError(e, path))
+        })
+    }
 }
